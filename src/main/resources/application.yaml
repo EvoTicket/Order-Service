@@ -30,6 +30,16 @@ spring:
     multipart:
       max-file-size: 20MB
       max-request-size: 20MB
+  data:
+    redis:
+      url: ${REDIS_URL}
+      timeout: 2000ms
+      lettuce:
+        pool:
+          max-active: 8
+          max-idle: 8
+          min-idle: 0
+          max-wait: -1ms
 
 swagger:
   host-url: http://localhost:${server.port}

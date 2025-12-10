@@ -1,4 +1,13 @@
 eureka:
   client:
     service-url:
-      defaultZone: https://server-discovery.onrender.com/eureka/
+      defaultZone: ${EUREKA_URL}
+    fetch-registry: true
+    register-with-eureka: true
+  instance:
+    prefer-ip-address: true
+
+spring:
+  data:
+    redis:
+      url: ${REDIS_URL_PROD}
