@@ -81,11 +81,4 @@ public class VoucherController {
     public ResponseEntity<BaseResponse<Boolean>> deleteVoucher(@PathVariable Long voucherId) {
         return ResponseEntity.ok(BaseResponse.ok("Xóa voucher thành công",  voucherService.deleteVoucher(voucherId)));
     }
-
-    @PostMapping("/apply")
-    public ResponseEntity<BaseResponse<Boolean>> applyVoucher(
-            @Valid @RequestBody ApplyVoucherRequest request) {
-        Boolean response = voucherService.applyVoucher(request);
-        return ResponseEntity.ok(BaseResponse.ok("Áp dụng voucher thành công", response));
-    }
 }

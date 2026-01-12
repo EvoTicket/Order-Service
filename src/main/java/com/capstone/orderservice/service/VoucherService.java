@@ -1,6 +1,5 @@
 package com.capstone.orderservice.service;
 
-import com.capstone.orderservice.dto.request.ApplyVoucherRequest;
 import com.capstone.orderservice.dto.request.CreateVoucherRequest;
 import com.capstone.orderservice.dto.request.UpdateVoucherRequest;
 import com.capstone.orderservice.dto.response.VoucherResponse;
@@ -23,6 +22,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDateTime;
+import java.util.List;
 
 @Service
 @RequiredArgsConstructor
@@ -117,44 +117,58 @@ public class VoucherService {
     }
 
     @Transactional
-    public boolean applyVoucher(ApplyVoucherRequest request) {
-        Voucher voucher = voucherUtil.getVoucherById(request.getVoucherId());
+    public void applyVouchers(Order order, List<Long> voucherIds) {
 
-        voucher.validateVoucher();
+        List<Voucher> vouchers = voucherRepository
+                .findAllById(voucherIds);
 
-        Order order = orderUtil.getOrderById(request.getOrderId());
-
-        if (order.getTotalAmount().compareTo(voucher.getMinOrderAmount()) < 0) {
-            throw new AppException(ErrorCode.BAD_REQUEST, "Đơn hàng phải có giá trị tối thiểu %s để áp dụng voucher này");
+        if (vouchers.size() != voucherIds.size()) {
+            throw new AppException(ErrorCode.RESOURCE_NOT_FOUND, "Một số voucher không tồn tại");
         }
 
-        BigDecimal discountAmount = voucher.getDiscountValue();
+        BigDecimal totalDiscount = BigDecimal.ZERO;
 
-        if (voucher.getMaxDiscount() != null &&
-                discountAmount.compareTo(voucher.getMaxDiscount()) > 0) {
-            discountAmount = voucher.getMaxDiscount();
+        for (Voucher voucher : vouchers) {
+
+            voucher.validateVoucher();
+
+            if (order.getTotalAmount().compareTo(voucher.getMinOrderAmount()) < 0) {
+                throw new AppException(
+                        ErrorCode.BAD_REQUEST,
+                        "Đơn hàng phải có giá trị tối thiểu %s để áp dụng voucher này"
+                );
+            }
+
+            BigDecimal discount = voucher.getDiscountValue();
+
+            if (voucher.getMaxDiscount() != null &&
+                    discount.compareTo(voucher.getMaxDiscount()) > 0) {
+                discount = voucher.getMaxDiscount();
+            }
+
+            totalDiscount = totalDiscount.add(discount);
+
+            order.addVoucher(voucher);
         }
 
-        if (discountAmount.compareTo(order.getTotalAmount()) > 0) {
-            discountAmount = order.getTotalAmount();
-        }
+        totalDiscount = totalDiscount.min(order.getTotalAmount());
 
-        order.setDiscountAmount(order.getDiscountAmount().add(discountAmount));
+        order.setDiscountAmount(order.getDiscountAmount().add(totalDiscount));
 
-        BigDecimal finalAmount = order.getTotalAmount().subtract(discountAmount)
-                .setScale(2, RoundingMode.HALF_UP);
-        order.setFinalAmount(finalAmount);
+        order.setFinalAmount(
+                order.getTotalAmount()
+                        .subtract(totalDiscount)
+                        .setScale(2, RoundingMode.HALF_UP)
+        );
 
-        order.addVoucher(voucher);
         orderRepository.save(order);
-
-        return true;
     }
+
+
 
     @Transactional
     public void incrementVoucherUsage(Long id) {
         Voucher voucher = voucherUtil.getVoucherById(id);
-
         voucher.setQuantityUsed(voucher.getQuantityUsed() + 1);
         voucherRepository.save(voucher);
     }

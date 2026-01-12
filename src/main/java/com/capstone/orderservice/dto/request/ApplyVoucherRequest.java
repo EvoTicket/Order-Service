@@ -1,7 +1,10 @@
 package com.capstone.orderservice.dto.request;
 
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotEmpty;
 import lombok.*;
+
+import java.util.List;
 
 
 @Data
@@ -9,8 +12,8 @@ import lombok.*;
 @NoArgsConstructor
 @AllArgsConstructor
 public class ApplyVoucherRequest {
-    @NotBlank(message = "Voucher ID không được để trống")
-    private Long voucherId;
+    @NotEmpty(message = "Danh sách voucher không được để trống")
+    private List<Long> voucherIds;
 
     @NotBlank(message = "Order ID không được để trống")
     private Long orderId;

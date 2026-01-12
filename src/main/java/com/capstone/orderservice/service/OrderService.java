@@ -1,6 +1,7 @@
 package com.capstone.orderservice.service;
 
 import com.capstone.orderservice.client.InventoryFeignClient;
+import com.capstone.orderservice.dto.OrderCreationEvent;
 import com.capstone.orderservice.dto.request.CreateOrderRequest;
 import com.capstone.orderservice.dto.request.OrderItemRequest;
 import com.capstone.orderservice.dto.response.OrderResponse;
@@ -9,6 +10,7 @@ import com.capstone.orderservice.entity.OrderItem;
 import com.capstone.orderservice.enums.OrderStatus;
 import com.capstone.orderservice.exception.AppException;
 import com.capstone.orderservice.exception.ErrorCode;
+import com.capstone.orderservice.producer.RedisStreamProducer;
 import com.capstone.orderservice.repository.OrderRepository;
 import com.capstone.orderservice.security.JwtUtil;
 import com.capstone.orderservice.util.OrderUtil;
@@ -33,6 +35,7 @@ public class OrderService {
     private final OrderUtil orderUtil;
     private final JwtUtil jwtUtil;
     private final InventoryFeignClient inventoryFeignClient;
+    private final RedisStreamProducer redisStreamProducer;
 
     @Transactional
     public OrderResponse createOrder(CreateOrderRequest request) {
@@ -46,13 +49,16 @@ public class OrderService {
                 .orderStatus(OrderStatus.PENDING)
                 .build();
 
-        order = orderRepository.save(order);
-
         for (OrderItemRequest itemRequest : request.getItems()) {
-            BigDecimal unitPrice = inventoryFeignClient
-                    .getTicketTypeById(itemRequest.getTicketTypeId())
-                    .getData()
-                    .getPrice();
+
+            var ticketResponse = inventoryFeignClient
+                    .getTicketTypeById(itemRequest.getTicketTypeId());
+
+            if (ticketResponse == null || ticketResponse.getData() == null) {
+                throw new AppException(ErrorCode.RESOURCE_NOT_FOUND, "Ticket không tồn tại");
+            }
+
+            BigDecimal unitPrice = ticketResponse.getData().getPrice();
 
             OrderItem orderItem = OrderItem.builder()
                     .order(order)
@@ -69,9 +75,21 @@ public class OrderService {
         order.setTotalAmount(totalAmount);
         order.setFinalAmount(totalAmount);
 
-        order = orderRepository.save(order);
+        voucherService.applyVouchers(order, request.getVoucherIds());
 
-        return OrderResponse.fromEntity(order);
+        Order savedOrder = orderRepository.save(order);
+
+        OrderCreationEvent orderCreationEvent = OrderCreationEvent.builder()
+                .id(savedOrder.getId())
+                .userId(jwtUtil.getDataFromAuth().userId())
+                .orderCode(savedOrder.getOrderCode())
+                .totalAmount(totalAmount)
+                .discountAmount(totalAmount)
+                .finalAmount(totalAmount)
+                .build();
+        redisStreamProducer.sendMessage("order-creation", orderCreationEvent);
+
+        return OrderResponse.fromEntity(orderRepository.save(order));
     }
 
     @Transactional(readOnly = true)

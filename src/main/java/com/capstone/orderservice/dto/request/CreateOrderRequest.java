@@ -23,4 +23,6 @@ public class CreateOrderRequest {
     @NotEmpty(message = "Danh sách sản phẩm không được để trống")
     @Valid
     private List<OrderItemRequest> items;
+
+    private List<Long> voucherIds;
 }

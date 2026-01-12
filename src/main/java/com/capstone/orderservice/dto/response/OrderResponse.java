@@ -39,10 +39,10 @@ public class OrderResponse {
                 .orderStatus(order.getOrderStatus())
                 .vouchers(order.getOrderVouchers().stream()
                         .map(VoucherResponse::fromOrderVoucher)
-                        .collect(Collectors.toList()))
+                        .toList())
                 .items(order.getOrderItems().stream()
                         .map(OrderItemResponse::fromEntity)
-                        .collect(Collectors.toList()))
+                        .toList())
                 .createdAt(order.getCreatedAt())
                 .updatedAt(order.getUpdatedAt())
                 .build();
