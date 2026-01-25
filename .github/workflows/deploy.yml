@@ -1,0 +1,163 @@
+name: Deploy to Render with Tag & Release
+
+on:
+  push:
+    branches:
+      - 'release*'
+      - 'release/**'
+
+jobs:
+  create-tag-and-release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    outputs:
+      version: ${{ steps.extract_info.outputs.version }}
+      tag_created: ${{ steps.check_tag.outputs.exists == 'false' }}
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Extract branch name and version
+        id: extract_info
+        run: |
+          BRANCH_NAME=${GITHUB_REF#refs/heads/}
+          echo "branch=$BRANCH_NAME" >> $GITHUB_OUTPUT
+          
+          # Tạo version từ tên nhánh (ví dụ: release/v1.0.0 -> v1.0.0)
+          if [[ $BRANCH_NAME == release/* ]]; then
+            VERSION=${BRANCH_NAME#release/}
+          else
+            # Nếu chỉ là "release" hoặc "release-xxx", dùng timestamp
+            VERSION="v$(date +'%Y.%m.%d-%H%M%S')"
+          fi
+          
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "📦 Version: $VERSION"
+
+      - name: Check if tag exists
+        id: check_tag
+        run: |
+          VERSION="${{ steps.extract_info.outputs.version }}"
+          if git rev-parse "$VERSION" >/dev/null 2>&1; then
+            echo "exists=true" >> $GITHUB_OUTPUT
+            echo "⚠️ Tag $VERSION already exists"
+          else
+            echo "exists=false" >> $GITHUB_OUTPUT
+            echo "✅ Tag $VERSION does not exist"
+          fi
+
+      - name: Create and push tag
+        if: steps.check_tag.outputs.exists == 'false'
+        run: |
+          VERSION="${{ steps.extract_info.outputs.version }}"
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          
+          git tag -a "$VERSION" -m "Release $VERSION from ${{ steps.extract_info.outputs.branch }}"
+          git push origin "$VERSION"
+          
+          echo "🏷️ Tag $VERSION created and pushed"
+
+      - name: Generate release notes
+        id: release_notes
+        if: steps.check_tag.outputs.exists == 'false'
+        run: |
+          VERSION="${{ steps.extract_info.outputs.version }}"
+          BRANCH="${{ steps.extract_info.outputs.branch }}"
+          
+          # Lấy commit messages từ lần release trước
+          PREVIOUS_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "")
+          
+          if [ -z "$PREVIOUS_TAG" ]; then
+            COMMITS=$(git log --pretty=format:"- %s (%h)" -10)
+          else
+            COMMITS=$(git log $PREVIOUS_TAG..HEAD --pretty=format:"- %s (%h)")
+          fi
+          
+          # Tạo release notes
+          cat << EOF > release_notes.md
+          ## 🚀 Release $VERSION
+          
+          **Branch:** \`$BRANCH\`
+          **Date:** $(date +'%Y-%m-%d %H:%M:%S')
+          
+          ### 📝 Changes
+          $COMMITS
+          
+          ### 🔗 Links
+          - [View diff](https://github.com/${{ github.repository }}/compare/$PREVIOUS_TAG...$VERSION)
+          - [Render Dashboard](https://dashboard.render.com)
+          EOF
+          
+          echo "Release notes generated"
+
+      - name: Create GitHub Release
+        if: steps.check_tag.outputs.exists == 'false'
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ steps.extract_info.outputs.version }}
+          name: Release ${{ steps.extract_info.outputs.version }}
+          body_path: release_notes.md
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  deploy-to-render:
+    runs-on: ubuntu-latest
+    needs: create-tag-and-release
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Extract branch name
+        id: extract_branch
+        run: |
+          BRANCH_NAME=${GITHUB_REF#refs/heads/}
+          echo "branch=$BRANCH_NAME" >> $GITHUB_OUTPUT
+          echo "Deploying branch: $BRANCH_NAME"
+
+      - name: Trigger Render Deploy Hook
+        env:
+          RENDER_DEPLOY_HOOK_URL: ${{ secrets.RENDER_DEPLOY_HOOK_URL }}
+        run: |
+          if [ -z "$RENDER_DEPLOY_HOOK_URL" ]; then
+            echo "Error: RENDER_DEPLOY_HOOK_URL secret is not set"
+            exit 1
+          fi
+          
+          echo "Triggering deployment for branch: ${{ steps.extract_branch.outputs.branch }}"
+          echo "Version: ${{ needs.create-tag-and-release.outputs.version }}"
+          
+          response=$(curl -s -w "\n%{http_code}" -X POST "$RENDER_DEPLOY_HOOK_URL")
+          http_code=$(echo "$response" | tail -n1)
+          body=$(echo "$response" | head -n-1)
+          
+          echo "Response body: $body"
+          echo "HTTP Status: $http_code"
+          
+          if [ "$http_code" -ge 200 ] && [ "$http_code" -lt 300 ]; then
+            echo "✅ Deploy triggered successfully!"
+          else
+            echo "❌ Deploy failed with status code: $http_code"
+            exit 1
+          fi
+
+      - name: Deployment Summary
+        if: success()
+        run: |
+          echo "### ✅ Deployment Complete!" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- **Version:** ${{ needs.create-tag-and-release.outputs.version }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Branch:** ${{ steps.extract_branch.outputs.branch }}" >> $GITHUB_STEP_SUMMARY
+          if [ "${{ needs.create-tag-and-release.outputs.tag_created }}" == "true" ]; then
+            echo "- **Tag:** [View Tag](https://github.com/${{ github.repository }}/releases/tag/${{ needs.create-tag-and-release.outputs.version }})" >> $GITHUB_STEP_SUMMARY
+          fi
+          echo "- **Status:** Render deployment triggered" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Check [Render Dashboard](https://dashboard.render.com) for deployment progress" >> $GITHUB_STEP_SUMMARY
