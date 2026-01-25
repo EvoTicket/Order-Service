@@ -1,9 +1,10 @@
 package com.capstone.orderservice.service;
 
 import com.capstone.orderservice.client.InventoryFeignClient;
+import com.capstone.orderservice.client.ListTicketTypesInternalResponse;
 import com.capstone.orderservice.dto.OrderCreationEvent;
 import com.capstone.orderservice.dto.request.CreateOrderRequest;
-import com.capstone.orderservice.dto.request.OrderItemRequest;
+import com.capstone.orderservice.client.OrderInternalResponse;
 import com.capstone.orderservice.dto.response.OrderResponse;
 import com.capstone.orderservice.entity.Order;
 import com.capstone.orderservice.entity.OrderItem;
@@ -23,8 +24,10 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
 import java.util.List;
-import java.util.UUID;
+import java.util.concurrent.ThreadLocalRandom;
 
 @Service
 @RequiredArgsConstructor
@@ -39,32 +42,43 @@ public class OrderService {
 
     @Transactional
     public OrderResponse createOrder(CreateOrderRequest request) {
-        String orderCode = "ORD-" + UUID.randomUUID();
+        String datePart = LocalDate.now()
+                .format(DateTimeFormatter.ofPattern("ddMMyy"));
+
+        int randomPart = ThreadLocalRandom.current().nextInt(100000, 1_000_000);
+
+        String orderCode = datePart + randomPart;
 
         Order order = Order.builder()
                 .orderCode(orderCode)
                 .userId(jwtUtil.getDataFromAuth().userId())
+                .fullName(request.getFullName())
+                .phoneNumber(request.getPhoneNumber())
+                .email(request.getEmail())
                 .orderCode(orderCode)
                 .discountAmount(BigDecimal.ZERO)
                 .orderStatus(OrderStatus.PENDING)
                 .build();
 
-        for (OrderItemRequest itemRequest : request.getItems()) {
+        ListTicketTypesInternalResponse response = inventoryFeignClient.getTicketTypes(request.getItems()).getData();
+        if (response == null) {
+            throw new AppException(ErrorCode.INTERNAL_SERVER_ERROR, "Lấy ticket lỗi");
+        }
+        order.setEventId(response.getEventId());
+        order.setEventName(response.getEventName());
 
-            var ticketResponse = inventoryFeignClient
-                    .getTicketTypeById(itemRequest.getTicketTypeId());
+        for (ListTicketTypesInternalResponse.TicketDetailResponse ticket : response.getTicketDetails()) {
 
-            if (ticketResponse == null || ticketResponse.getData() == null) {
+            if (ticket == null) {
                 throw new AppException(ErrorCode.RESOURCE_NOT_FOUND, "Ticket không tồn tại");
             }
 
-            BigDecimal unitPrice = ticketResponse.getData().getPrice();
-
             OrderItem orderItem = OrderItem.builder()
                     .order(order)
-                    .ticketTypeId(itemRequest.getTicketTypeId())
-                    .quantity(itemRequest.getQuantity())
-                    .unitPrice(unitPrice)
+                    .ticketTypeId(ticket.getTicketTypeId())
+                    .quantity(ticket.getQuantity())
+                    .unitPrice(ticket.getPrice())
+                    .ticketTypeName(ticket.getTicketTypeName())
                     .build();
 
             orderItem.calculateSubtotal();
@@ -133,6 +147,12 @@ public class OrderService {
 
         order.setOrderStatus(OrderStatus.CANCELLED);
         orderRepository.save(order);
+    }
+
+    @Transactional(readOnly = true)
+    public OrderInternalResponse getOrdersDetail(Long id) {
+        Order order = orderUtil.getOrderById(id);
+        return OrderInternalResponse.fromEntity(order);
     }
 
     private BigDecimal calculateTotalAmount(List<OrderItem> items) {

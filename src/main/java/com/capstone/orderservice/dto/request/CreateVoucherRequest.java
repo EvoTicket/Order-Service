@@ -1,6 +1,5 @@
 package com.capstone.orderservice.dto.request;
 
-import com.capstone.orderservice.enums.VoucherStatus;
 import jakarta.validation.constraints.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;

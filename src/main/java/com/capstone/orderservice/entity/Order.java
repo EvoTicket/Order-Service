@@ -38,6 +38,9 @@ public class Order {
     @Column(name = "event_id")
     private Long eventId;
 
+    @Column(name = "event_name")
+    private String eventName;
+
     @Column(name = "total_amount")
     private BigDecimal totalAmount;
 

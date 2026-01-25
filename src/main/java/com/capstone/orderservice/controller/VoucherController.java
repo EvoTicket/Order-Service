@@ -2,7 +2,6 @@ package com.capstone.orderservice.controller;
 
 import com.capstone.orderservice.dto.BasePageResponse;
 import com.capstone.orderservice.dto.BaseResponse;
-import com.capstone.orderservice.dto.request.ApplyVoucherRequest;
 import com.capstone.orderservice.dto.request.CreateVoucherRequest;
 import com.capstone.orderservice.dto.request.UpdateVoucherRequest;
 import com.capstone.orderservice.dto.response.VoucherResponse;

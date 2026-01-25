@@ -7,6 +7,13 @@ spring:
   security:
     jwt:
       secret-key: ${JWT_SECRET_KEY}
+    internal:
+      secret-key: ${INTERNAL_SERVICE_SECRET_KEY}
+      token-expiration: 3600000
+      enabled: true
+      service-name: order-service
+      allowed-services:
+        - inventory-service
   datasource:
     url: ${DB_URL}
     username: ${DB_USERNAME}

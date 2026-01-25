@@ -10,7 +10,6 @@ import com.capstone.orderservice.exception.AppException;
 import com.capstone.orderservice.exception.ErrorCode;
 import com.capstone.orderservice.repository.OrderRepository;
 import com.capstone.orderservice.repository.VoucherRepository;
-import com.capstone.orderservice.util.OrderUtil;
 import com.capstone.orderservice.util.VoucherUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -30,7 +29,6 @@ import java.util.List;
 public class VoucherService {
     private final VoucherRepository voucherRepository;
     private final VoucherUtil voucherUtil;
-    private final OrderUtil orderUtil;
     private final OrderRepository orderRepository;
 
     @Transactional

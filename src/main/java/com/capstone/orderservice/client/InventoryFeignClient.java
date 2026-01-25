@@ -2,15 +2,19 @@ package com.capstone.orderservice.client;
 
 import com.capstone.orderservice.config.FeignClientConfig;
 import com.capstone.orderservice.dto.BaseResponse;
+import com.capstone.orderservice.dto.request.OrderItemRequest;
 import org.springframework.cloud.openfeign.FeignClient;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+
+import java.util.List;
 
 @FeignClient(
         name = "inventory-service",
+        path = "/api/internal",
         configuration = FeignClientConfig.class
 )
 public interface InventoryFeignClient {
-    @GetMapping("/api/ticket-types/{ticketTypeId}")
-    BaseResponse<TicketTypeResponse> getTicketTypeById(@PathVariable("ticketTypeId") Long ticketTypeId);
+    @PostMapping("/ticket-types/tickets")
+    BaseResponse<ListTicketTypesInternalResponse> getTicketTypes(@RequestBody List<OrderItemRequest> listItems);
 }

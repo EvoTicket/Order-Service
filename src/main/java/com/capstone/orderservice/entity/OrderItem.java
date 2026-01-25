@@ -24,11 +24,14 @@ public class OrderItem {
     @Column(name = "ticket_type_id")
     private Long ticketTypeId;
 
+    @Column(name = "ticket_type_name")
+    private String ticketTypeName;
+
     @Column(name = "subtotal")
     private BigDecimal subtotal;
 
     @Column(name = "quantity")
-    private Integer quantity;
+    private Long quantity;
 
     @Column(name = "unit_price")
     private BigDecimal unitPrice;

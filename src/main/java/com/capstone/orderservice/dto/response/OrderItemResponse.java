@@ -13,7 +13,8 @@ import java.time.LocalDateTime;
 public class OrderItemResponse {
     private Long id;
     private Long ticketTypeId;
-    private Integer quantity;
+    private String ticketTypeName;
+    private Long quantity;
     private BigDecimal unitPrice;
     private BigDecimal subtotal;
     private LocalDateTime createdAt;
@@ -22,6 +23,7 @@ public class OrderItemResponse {
         return OrderItemResponse.builder()
                 .id(item.getId())
                 .ticketTypeId(item.getTicketTypeId())
+                .ticketTypeName(item.getTicketTypeName())
                 .quantity(item.getQuantity())
                 .unitPrice(item.getUnitPrice())
                 .subtotal(item.getSubtotal())
