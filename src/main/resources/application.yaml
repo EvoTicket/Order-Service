@@ -13,7 +13,7 @@ spring:
       enabled: true
       service-name: order-service
       allowed-services:
-        - inventory-service
+        - payment-service
   datasource:
     url: ${DB_URL}
     username: ${DB_USERNAME}
