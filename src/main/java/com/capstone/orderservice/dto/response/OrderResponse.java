@@ -1,5 +1,6 @@
 package com.capstone.orderservice.dto.response;
 
+import com.capstone.orderservice.client.OrderItemInternalResponse;
 import com.capstone.orderservice.entity.Order;
 
 import java.math.BigDecimal;
@@ -22,7 +23,7 @@ public class OrderResponse {
     private BigDecimal finalAmount;
     private OrderStatus orderStatus;
     private List<VoucherResponse> vouchers;
-    private List<OrderItemResponse> items;
+    private List<OrderItemInternalResponse> items;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 
@@ -40,7 +41,7 @@ public class OrderResponse {
                         .map(VoucherResponse::fromOrderVoucher)
                         .toList())
                 .items(order.getOrderItems().stream()
-                        .map(OrderItemResponse::fromEntity)
+                        .map(OrderItemInternalResponse::fromEntity)
                         .toList())
                 .createdAt(order.getCreatedAt())
                 .updatedAt(order.getUpdatedAt())

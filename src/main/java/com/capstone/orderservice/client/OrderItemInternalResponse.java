@@ -1,4 +1,4 @@
-package com.capstone.orderservice.dto.response;
+package com.capstone.orderservice.client;
 
 import com.capstone.orderservice.entity.OrderItem;
 import lombok.*;
@@ -10,7 +10,7 @@ import java.time.LocalDateTime;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class OrderItemResponse {
+public class OrderItemInternalResponse {
     private Long id;
     private Long ticketTypeId;
     private String ticketTypeName;
@@ -19,8 +19,8 @@ public class OrderItemResponse {
     private BigDecimal subtotal;
     private LocalDateTime createdAt;
 
-    public static OrderItemResponse fromEntity(OrderItem item) {
-        return OrderItemResponse.builder()
+    public static OrderItemInternalResponse fromEntity(OrderItem item) {
+        return OrderItemInternalResponse.builder()
                 .id(item.getId())
                 .ticketTypeId(item.getTicketTypeId())
                 .ticketTypeName(item.getTicketTypeName())

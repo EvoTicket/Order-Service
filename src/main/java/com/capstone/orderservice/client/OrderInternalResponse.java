@@ -1,6 +1,5 @@
 package com.capstone.orderservice.client;
 
-import com.capstone.orderservice.dto.response.OrderItemResponse;
 import com.capstone.orderservice.entity.Order;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -22,7 +21,7 @@ public class OrderInternalResponse {
     private String buyerPhone;
     private String buyerEmail;
     private BigDecimal finalAmount;
-    private List<OrderItemResponse> items;
+    private List<OrderItemInternalResponse> items;
 
     public static OrderInternalResponse fromEntity(Order order) {
         return OrderInternalResponse.builder()
@@ -34,7 +33,7 @@ public class OrderInternalResponse {
                 .buyerPhone(order.getPhoneNumber())
                 .finalAmount(order.getFinalAmount())
                 .items(order.getOrderItems().stream()
-                        .map(OrderItemResponse::fromEntity)
+                        .map(OrderItemInternalResponse::fromEntity)
                         .toList())
                 .build();
     }
