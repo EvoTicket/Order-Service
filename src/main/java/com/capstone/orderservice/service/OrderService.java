@@ -2,9 +2,10 @@ package com.capstone.orderservice.service;
 
 import com.capstone.orderservice.client.InventoryFeignClient;
 import com.capstone.orderservice.client.ListTicketTypesInternalResponse;
-import com.capstone.orderservice.dto.OrderCreationEvent;
+import com.capstone.orderservice.dto.event.OrderPaidEvent;
 import com.capstone.orderservice.dto.request.CreateOrderRequest;
 import com.capstone.orderservice.client.OrderInternalResponse;
+import com.capstone.orderservice.dto.request.OrderItemRequest;
 import com.capstone.orderservice.dto.response.OrderResponse;
 import com.capstone.orderservice.entity.Order;
 import com.capstone.orderservice.entity.OrderItem;
@@ -15,15 +16,19 @@ import com.capstone.orderservice.producer.RedisStreamProducer;
 import com.capstone.orderservice.repository.OrderRepository;
 import com.capstone.orderservice.security.JwtUtil;
 import com.capstone.orderservice.util.OrderUtil;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.time.Duration;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
@@ -38,10 +43,14 @@ public class OrderService {
     private final OrderUtil orderUtil;
     private final JwtUtil jwtUtil;
     private final InventoryFeignClient inventoryFeignClient;
+    private final RedisTemplate<String, Object> redisTemplate;
     private final RedisStreamProducer redisStreamProducer;
+    private final ObjectMapper objectMapper;
 
     @Transactional
     public OrderResponse createOrder(CreateOrderRequest request) {
+        inventoryFeignClient.reserveTickets(request.getItems());
+
         String datePart = LocalDate.now()
                 .format(DateTimeFormatter.ofPattern("ddMMyy"));
 
@@ -91,19 +100,44 @@ public class OrderService {
 
         voucherService.applyVouchers(order, request.getVoucherIds());
 
-        Order savedOrder = orderRepository.save(order);
-
-        OrderCreationEvent orderCreationEvent = OrderCreationEvent.builder()
-                .id(savedOrder.getId())
-                .userId(jwtUtil.getDataFromAuth().userId())
-                .orderCode(savedOrder.getOrderCode())
-                .totalAmount(totalAmount)
-                .discountAmount(totalAmount)
-                .finalAmount(totalAmount)
-                .build();
-        redisStreamProducer.sendMessage("order-creation", orderCreationEvent);
+        try {
+            String json = objectMapper.writeValueAsString(request.getItems());
+            redisTemplate.opsForValue().set(
+                    "order:reserve:" + orderCode,
+                    json,
+                    Duration.ofMinutes(10)
+            );
+        } catch (JsonProcessingException e) {
+            throw new AppException(ErrorCode.INTERNAL_SERVER_ERROR, "Lỗi khi chuyển đổi dữ liệu đơn hàng");
+        }
 
         return OrderResponse.fromEntity(orderRepository.save(order));
+    }
+
+    @Transactional
+    public void markPaid(Long orderId) {
+
+        Order order = orderRepository.findById(orderId)
+                .orElseThrow();
+
+        order.setOrderStatus(OrderStatus.CONFIRMED);
+        orderRepository.save(order);
+
+        List<OrderItemRequest> orderItemInternalResponses = order.getOrderItems()
+                .stream()
+                .map(item -> OrderItemRequest.builder()
+                        .ticketTypeId(item.getTicketTypeId())
+                        .quantity(Math.toIntExact(item.getQuantity()))
+                        .build()
+                )
+                .toList();
+        OrderPaidEvent orderPaidEvent = OrderPaidEvent.builder()
+                .items(orderItemInternalResponses)
+                .build();
+
+        redisStreamProducer.sendMessage("order-paid", orderPaidEvent);
+
+        redisTemplate.delete("order:reserve:" + order.getOrderCode());
     }
 
     @Transactional(readOnly = true)
@@ -137,13 +171,23 @@ public class OrderService {
     public void cancelOrder(Long id) {
         Order order = orderUtil.getOrderById(id);
 
-        if (order.getOrderStatus() == OrderStatus.CONFIRMED) {
-            throw new AppException(ErrorCode.BAD_REQUEST, "Không thể hủy đơn hàng đã được xác nhận");
+        if (!order.getOrderStatus().canBeCancelled()) {
+            throw new AppException(
+                    ErrorCode.BAD_REQUEST,
+                    "Không thể hủy đơn ở trạng thái " + order.getOrderStatus()
+            );
         }
 
-        if (order.getOrderStatus() == OrderStatus.CANCELLED) {
-            throw new AppException(ErrorCode.BAD_REQUEST, "Đơn hàng đã bị hủy trước đó");
-        }
+        List<OrderItemRequest> items = order.getOrderItems()
+                .stream()
+                .map(item -> OrderItemRequest.builder()
+                        .ticketTypeId(item.getTicketTypeId())
+                        .quantity(Math.toIntExact(item.getQuantity()))
+                        .build()
+                )
+                .toList();
+
+        inventoryFeignClient.releaseTickets(items);
 
         order.setOrderStatus(OrderStatus.CANCELLED);
         orderRepository.save(order);

@@ -10,4 +10,4 @@ eureka:
 spring:
   data:
     redis:
-      url: ${REDIS_URL_PROD}
+      url: ${REDIS_PROD_URL}

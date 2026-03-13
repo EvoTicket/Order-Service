@@ -3,11 +3,9 @@ package com.capstone.orderservice.controller;
 import com.capstone.orderservice.dto.BasePageResponse;
 import com.capstone.orderservice.dto.BaseResponse;
 import com.capstone.orderservice.dto.request.CreateOrderRequest;
-import com.capstone.orderservice.client.OrderInternalResponse;
 import com.capstone.orderservice.dto.response.OrderResponse;
 import com.capstone.orderservice.enums.OrderStatus;
 import com.capstone.orderservice.service.OrderService;
-
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -94,5 +92,11 @@ public class OrderController {
     public ResponseEntity<BaseResponse<Void>> cancelOrder(@PathVariable Long orderId) {
         orderService.cancelOrder(orderId);
         return ResponseEntity.ok(BaseResponse.ok("Hủy đơn hàng thành công", null));
+    }
+
+    @PostMapping("/{orderId}/paid")
+    public ResponseEntity<BaseResponse<Void>> paidOrder(@PathVariable Long orderId) {
+        orderService.markPaid(orderId);
+        return ResponseEntity.ok(BaseResponse.ok("thành công", null));
     }
 }

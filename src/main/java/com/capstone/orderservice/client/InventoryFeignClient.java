@@ -17,4 +17,10 @@ import java.util.List;
 public interface InventoryFeignClient {
     @PostMapping("/ticket-types/tickets")
     BaseResponse<ListTicketTypesInternalResponse> getTicketTypes(@RequestBody List<OrderItemRequest> listItems);
+
+    @PostMapping("/ticket-types/reserve")
+    BaseResponse<Boolean> reserveTickets(@RequestBody List<OrderItemRequest> listItems);
+
+    @PostMapping("/ticket-types/release")
+    BaseResponse<Boolean> releaseTickets(@RequestBody List<OrderItemRequest> listItems);
 }
