@@ -1,4 +1,4 @@
-name: Deploy to Render with Tag & Release
+name: Deploy to VPS with Docker
 
 on:
   push:
@@ -7,13 +7,13 @@ on:
       - 'release/**'
 
 jobs:
-  create-tag-and-release:
+  build-and-push:
     runs-on: ubuntu-latest
     permissions:
       contents: write
     outputs:
       version: ${{ steps.extract_info.outputs.version }}
-      tag_created: ${{ steps.check_tag.outputs.exists == 'false' }}
+      image_tag: ${{ steps.extract_info.outputs.image_tag }}
     
     steps:
       - name: Checkout code
@@ -35,8 +35,13 @@ jobs:
             VERSION="v$(date +'%Y.%m.%d-%H%M%S')"
           fi
           
+          # Tạo image tag (loại bỏ ký tự đặc biệt không hợp lệ cho Docker tag)
+          IMAGE_TAG=$(echo "$VERSION" | tr '/' '-')
+          
           echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "image_tag=$IMAGE_TAG" >> $GITHUB_OUTPUT
           echo "📦 Version: $VERSION"
+          echo "🏷️ Image Tag: $IMAGE_TAG"
 
       - name: Check if tag exists
         id: check_tag
@@ -69,7 +74,6 @@ jobs:
           VERSION="${{ steps.extract_info.outputs.version }}"
           BRANCH="${{ steps.extract_info.outputs.branch }}"
           
-          # Lấy commit messages từ lần release trước
           PREVIOUS_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "")
           
           if [ -z "$PREVIOUS_TAG" ]; then
@@ -78,22 +82,20 @@ jobs:
             COMMITS=$(git log $PREVIOUS_TAG..HEAD --pretty=format:"- %s (%h)")
           fi
           
-          # Tạo release notes
           cat << EOF > release_notes.md
           ## 🚀 Release $VERSION
           
           **Branch:** \`$BRANCH\`
           **Date:** $(date +'%Y-%m-%d %H:%M:%S')
+          **Docker Image:** \`${{ secrets.DOCKER_USERNAME }}/${{ secrets.DOCKER_IMAGE_NAME }}:${{ steps.extract_info.outputs.image_tag }}\`
           
           ### 📝 Changes
           $COMMITS
           
           ### 🔗 Links
           - [View diff](https://github.com/${{ github.repository }}/compare/$PREVIOUS_TAG...$VERSION)
-          - [Render Dashboard](https://dashboard.render.com)
+          - [Docker Hub](https://hub.docker.com/r/${{ secrets.DOCKER_USERNAME }}/${{ secrets.DOCKER_IMAGE_NAME }})
           EOF
-          
-          echo "Release notes generated"
 
       - name: Create GitHub Release
         if: steps.check_tag.outputs.exists == 'false'
@@ -107,57 +109,72 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-  deploy-to-render:
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: |
+            ${{ secrets.DOCKER_USERNAME }}/${{ secrets.DOCKER_IMAGE_NAME }}:${{ steps.extract_info.outputs.image_tag }}
+            ${{ secrets.DOCKER_USERNAME }}/${{ secrets.DOCKER_IMAGE_NAME }}:latest
+          cache-from: type=registry,ref=${{ secrets.DOCKER_USERNAME }}/${{ secrets.DOCKER_IMAGE_NAME }}:buildcache
+          cache-to: type=registry,ref=${{ secrets.DOCKER_USERNAME }}/${{ secrets.DOCKER_IMAGE_NAME }}:buildcache,mode=max
+
+  deploy-to-vps:
     runs-on: ubuntu-latest
-    needs: create-tag-and-release
+    needs: build-and-push
     
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Extract branch name
-        id: extract_branch
-        run: |
-          BRANCH_NAME=${GITHUB_REF#refs/heads/}
-          echo "branch=$BRANCH_NAME" >> $GITHUB_OUTPUT
-          echo "Deploying branch: $BRANCH_NAME"
-
-      - name: Trigger Render Deploy Hook
-        env:
-          RENDER_DEPLOY_HOOK_URL: ${{ secrets.RENDER_DEPLOY_HOOK_URL }}
-        run: |
-          if [ -z "$RENDER_DEPLOY_HOOK_URL" ]; then
-            echo "Error: RENDER_DEPLOY_HOOK_URL secret is not set"
-            exit 1
-          fi
-          
-          echo "Triggering deployment for branch: ${{ steps.extract_branch.outputs.branch }}"
-          echo "Version: ${{ needs.create-tag-and-release.outputs.version }}"
-          
-          response=$(curl -s -w "\n%{http_code}" -X POST "$RENDER_DEPLOY_HOOK_URL")
-          http_code=$(echo "$response" | tail -n1)
-          body=$(echo "$response" | head -n-1)
-          
-          echo "Response body: $body"
-          echo "HTTP Status: $http_code"
-          
-          if [ "$http_code" -ge 200 ] && [ "$http_code" -lt 300 ]; then
-            echo "✅ Deploy triggered successfully!"
-          else
-            echo "❌ Deploy failed with status code: $http_code"
-            exit 1
-          fi
+      - name: Deploy to VPS
+        uses: appleboy/ssh-action@v1.0.0
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USERNAME }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          port: ${{ secrets.VPS_PORT || 22 }}
+          script: |
+            cd ${{ secrets.VPS_DEPLOY_PATH || '~/app' }}
+            
+            # Backup file .env hiện tại (nếu có)
+            if [ -f .env ]; then
+              cp .env .env.backup
+            fi
+            
+            # Update image tag trong docker-compose.yml
+            export IMAGE_TAG=${{ needs.build-and-push.outputs.image_tag }}
+            export DOCKER_IMAGE=${{ secrets.DOCKER_USERNAME }}/${{ secrets.DOCKER_IMAGE_NAME }}
+            
+            # Pull image mới nhất
+            docker pull ${DOCKER_IMAGE}:${IMAGE_TAG}
+            
+            # Stop và remove container cũ
+            docker-compose down
+            
+            # Start với image mới
+            docker-compose up -d
+            
+            # Clean up old images (giữ lại 3 images gần nhất)
+            docker image prune -af --filter "until=72h"
+            
+            echo "✅ Deployment completed successfully!"
+            echo "🐳 Image: ${DOCKER_IMAGE}:${IMAGE_TAG}"
 
       - name: Deployment Summary
         if: success()
         run: |
           echo "### ✅ Deployment Complete!" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "- **Version:** ${{ needs.create-tag-and-release.outputs.version }}" >> $GITHUB_STEP_SUMMARY
-          echo "- **Branch:** ${{ steps.extract_branch.outputs.branch }}" >> $GITHUB_STEP_SUMMARY
-          if [ "${{ needs.create-tag-and-release.outputs.tag_created }}" == "true" ]; then
-            echo "- **Tag:** [View Tag](https://github.com/${{ github.repository }}/releases/tag/${{ needs.create-tag-and-release.outputs.version }})" >> $GITHUB_STEP_SUMMARY
-          fi
-          echo "- **Status:** Render deployment triggered" >> $GITHUB_STEP_SUMMARY
+          echo "- **Version:** ${{ needs.build-and-push.outputs.version }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Docker Image:** \`${{ secrets.DOCKER_USERNAME }}/${{ secrets.DOCKER_IMAGE_NAME }}:${{ needs.build-and-push.outputs.image_tag }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- **Status:** Deployed to VPS" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "Check [Render Dashboard](https://dashboard.render.com) for deployment progress" >> $GITHUB_STEP_SUMMARY
+          echo "View logs: \`ssh ${{ secrets.VPS_USERNAME }}@${{ secrets.VPS_HOST }} 'cd ${{ secrets.VPS_DEPLOY_PATH || '~/app' }} && docker-compose logs -f'\`" >> $GITHUB_STEP_SUMMARY
