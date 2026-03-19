@@ -75,8 +75,8 @@ public class Order {
     @Column(name = "transaction_id")
     private String transactionId;
 
-    @Column(name = "paid_at")
-    private LocalDateTime paidAt;
+    @Column(name = "transaction_date_time")
+    private String transactionDateTime;
 
     @PrePersist
     protected void onCreate() {

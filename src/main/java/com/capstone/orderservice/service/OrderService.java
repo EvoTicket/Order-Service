@@ -186,7 +186,7 @@ public class OrderService {
                 .organizerName(event.getOrganizerName())
                 .paymentMethod(order.getPaymentMethod().name())
                 .transactionId(order.getTransactionId())
-                .paidAt(order.getPaidAt().format(DateTimeFormatter.ofPattern("dd/MM/yyyy 'lúc' HH:mm:ss")))
+                .paidAt(order.getTransactionDateTime())
                 .ticketItems(order.getOrderItems().stream()
                         .map(item -> OrderConfirmEvent.TicketItemDto.builder()
                                 .ticketTypeName(item.getTicketTypeName())
@@ -206,7 +206,7 @@ public class OrderService {
             return new AppException(ErrorCode.RESOURCE_NOT_FOUND, "Order not found");
         });
         order.setTransactionId(paymentSuccessEvent.getTransactionId());
-        order.setPaidAt(paymentSuccessEvent.getTransactionDateTime());
+        order.setTransactionDateTime(paymentSuccessEvent.getTransactionDateTime());
 
         List<OrderItemRequest> orderItemInternalResponses = order.getOrderItems()
                 .stream()
