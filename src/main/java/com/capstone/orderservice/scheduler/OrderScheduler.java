@@ -5,7 +5,6 @@ import com.capstone.orderservice.dto.request.OrderItemRequest;
 import com.capstone.orderservice.entity.Order;
 import com.capstone.orderservice.enums.OrderStatus;
 import com.capstone.orderservice.repository.OrderRepository;
-import com.fasterxml.jackson.core.JsonProcessingException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -22,11 +21,11 @@ public class OrderScheduler {
     private final RedisTemplate<String, Object> redisTemplate;
 
     @Scheduled(fixedRate = 60000)
-    public void releaseExpiredOrders() throws JsonProcessingException {
+    public void releaseExpiredOrders() {
 
         List<Order> expired = orderRepository.findByOrderStatusAndCreatedAtBefore(
                 OrderStatus.PENDING,
-                LocalDateTime.now().minusMinutes(1)
+                LocalDateTime.now().minusMinutes(10)
         );
 
         for (Order order : expired) {
@@ -55,5 +54,4 @@ public class OrderScheduler {
             orderRepository.save(order);
         }
     }
-
 }

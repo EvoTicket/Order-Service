@@ -1,6 +1,7 @@
 package com.capstone.orderservice.entity;
 
 import com.capstone.orderservice.enums.OrderStatus;
+import com.capstone.orderservice.enums.PaymentMethod;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -35,6 +36,9 @@ public class Order {
     @Column(name = "email")
     private String email;
 
+    @Enumerated(EnumType.STRING)
+    private PaymentMethod paymentMethod;
+
     @Column(name = "event_id")
     private Long eventId;
 
@@ -67,6 +71,12 @@ public class Order {
 
     @Column(name = "updated_at")
     private LocalDateTime updatedAt;
+
+    @Column(name = "transaction_id")
+    private String transactionId;
+
+    @Column(name = "paid_at")
+    private LocalDateTime paidAt;
 
     @PrePersist
     protected void onCreate() {

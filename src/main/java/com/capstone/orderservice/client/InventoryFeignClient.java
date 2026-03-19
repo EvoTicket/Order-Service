@@ -4,6 +4,8 @@ import com.capstone.orderservice.config.FeignClientConfig;
 import com.capstone.orderservice.dto.BaseResponse;
 import com.capstone.orderservice.dto.request.OrderItemRequest;
 import org.springframework.cloud.openfeign.FeignClient;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 
@@ -23,4 +25,7 @@ public interface InventoryFeignClient {
 
     @PostMapping("/ticket-types/release")
     BaseResponse<Boolean> releaseTickets(@RequestBody List<OrderItemRequest> listItems);
+
+    @GetMapping("/event/{eventId}")
+    BaseResponse<EventDetailResponse> getEventDetail(@PathVariable Long eventId);
 }

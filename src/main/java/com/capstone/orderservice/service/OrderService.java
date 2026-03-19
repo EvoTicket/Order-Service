@@ -1,8 +1,11 @@
 package com.capstone.orderservice.service;
 
+import com.capstone.orderservice.client.EventDetailResponse;
 import com.capstone.orderservice.client.InventoryFeignClient;
 import com.capstone.orderservice.client.ListTicketTypesInternalResponse;
+import com.capstone.orderservice.dto.event.OrderConfirmEvent;
 import com.capstone.orderservice.dto.event.OrderPaidEvent;
+import com.capstone.orderservice.dto.event.PaymentSuccessEvent;
 import com.capstone.orderservice.dto.request.CreateOrderRequest;
 import com.capstone.orderservice.client.OrderInternalResponse;
 import com.capstone.orderservice.dto.request.OrderItemRequest;
@@ -32,7 +35,9 @@ import java.time.Duration;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
+import java.util.Locale;
 import java.util.concurrent.ThreadLocalRandom;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -67,6 +72,7 @@ public class OrderService {
                 .orderCode(orderCode)
                 .discountAmount(BigDecimal.ZERO)
                 .orderStatus(OrderStatus.PENDING)
+                .paymentMethod(request.getPaymentMethod())
                 .build();
 
         ListTicketTypesInternalResponse response = inventoryFeignClient.getTicketTypes(request.getItems()).getData();
@@ -115,13 +121,92 @@ public class OrderService {
     }
 
     @Transactional
-    public void markPaid(Long orderId) {
-
-        Order order = orderRepository.findById(orderId)
-                .orElseThrow();
-
+    public void markPaid(String orderCode) {
+        Order order = orderRepository.findByOrderCode(orderCode)
+                .orElseThrow(() -> new AppException(ErrorCode.RESOURCE_NOT_FOUND, "Order not found"));
+        if (order.getOrderStatus() == OrderStatus.CONFIRMED) {
+            log.info("Order has been marked for confirmation");
+            return;
+        }
         order.setOrderStatus(OrderStatus.CONFIRMED);
         orderRepository.save(order);
+
+        redisTemplate.delete("order:reserve:" + order.getOrderCode());
+    }
+
+    @Transactional
+    public void markFailed(String orderCode) {
+        Order order = orderRepository.findByOrderCode(orderCode)
+                .orElseThrow(() -> new AppException(ErrorCode.RESOURCE_NOT_FOUND, "Order not found"));
+
+        if (order.getOrderStatus() != OrderStatus.PENDING) return;
+
+        order.setOrderStatus(OrderStatus.PAYMENT_FAILED);
+
+        List<OrderItemRequest> items = order.getOrderItems()
+                .stream()
+                .map(item -> OrderItemRequest.builder()
+                        .ticketTypeId(item.getTicketTypeId())
+                        .quantity(Math.toIntExact(item.getQuantity()))
+                        .build()
+                )
+                .toList();
+
+        inventoryFeignClient.releaseTickets(items);
+
+        redisTemplate.delete("order:reserve:" + orderCode);
+
+        EventDetailResponse event = inventoryFeignClient.getEventDetail(order.getEventId()).getData();
+        DateTimeFormatter timeFormatter = DateTimeFormatter.ofPattern("HH:mm");
+        OrderConfirmEvent emailDto = OrderConfirmEvent.builder()
+                .email(order.getEmail())
+                .fullName(order.getFullName())
+                .orderCode(order.getOrderCode())
+                .totalAmount(order.getTotalAmount())
+                .discountCode(
+                        order.getOrderVouchers().stream()
+                                .map(item -> item.getVoucher().getVoucherCode())
+                                .collect(Collectors.joining(", "))
+                )
+                .discountAmount(order.getDiscountAmount())
+                .ticketDownloadUrl("https://evoticket.vn/tickets/" + order.getOrderCode())
+                .eventName(event.getEventName())
+                .eventDate(
+                        event.getEventStartTime().format(
+                                DateTimeFormatter.ofPattern("EEEE, dd/MM/yyyy", Locale.forLanguageTag("vi"))
+                        )
+                )
+                .eventTime(
+                        event.getEventStartTime().format(timeFormatter)
+                                + " - " +
+                                event.getEventEndTime().format(timeFormatter)
+                )
+                .eventLocation(event.getVenue())
+                .eventAddress(event.getAddress() != null ? event.getAddress() : "")
+                .organizerName(event.getOrganizerName())
+                .paymentMethod(order.getPaymentMethod().name())
+                .transactionId(order.getTransactionId())
+                .paidAt(order.getPaidAt().format(DateTimeFormatter.ofPattern("dd/MM/yyyy 'lúc' HH:mm:ss")))
+                .ticketItems(order.getOrderItems().stream()
+                        .map(item -> OrderConfirmEvent.TicketItemDto.builder()
+                                .ticketTypeName(item.getTicketTypeName())
+                                .quantity(item.getQuantity())
+                                .unitPrice(item.getUnitPrice())
+                                .subtotal(item.getUnitPrice().multiply(BigDecimal.valueOf(item.getQuantity())))
+                                .build())
+                        .toList())
+                .build();
+        redisStreamProducer.sendMessage("order-confirm", emailDto);
+    }
+
+    @Transactional
+    public void commitTicket(PaymentSuccessEvent paymentSuccessEvent){
+        Order order = orderRepository.findByOrderCode(paymentSuccessEvent.getOrderCode().toString()).orElseThrow(() -> {
+            log.error("Cannot find order code {}", paymentSuccessEvent.getOrderCode());
+            return new AppException(ErrorCode.RESOURCE_NOT_FOUND, "Order not found");
+        });
+        order.setTransactionId(paymentSuccessEvent.getTransactionId());
+        order.setPaidAt(paymentSuccessEvent.getTransactionDateTime());
 
         List<OrderItemRequest> orderItemInternalResponses = order.getOrderItems()
                 .stream()
@@ -132,12 +217,11 @@ public class OrderService {
                 )
                 .toList();
         OrderPaidEvent orderPaidEvent = OrderPaidEvent.builder()
+                .orderCode(order.getOrderCode())
                 .items(orderItemInternalResponses)
                 .build();
 
         redisStreamProducer.sendMessage("order-paid", orderPaidEvent);
-
-        redisTemplate.delete("order:reserve:" + order.getOrderCode());
     }
 
     @Transactional(readOnly = true)

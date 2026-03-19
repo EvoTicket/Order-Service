@@ -93,10 +93,4 @@ public class OrderController {
         orderService.cancelOrder(orderId);
         return ResponseEntity.ok(BaseResponse.ok("Hủy đơn hàng thành công", null));
     }
-
-    @PostMapping("/{orderId}/paid")
-    public ResponseEntity<BaseResponse<Void>> paidOrder(@PathVariable Long orderId) {
-        orderService.markPaid(orderId);
-        return ResponseEntity.ok(BaseResponse.ok("thành công", null));
-    }
 }
