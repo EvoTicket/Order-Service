@@ -132,29 +132,6 @@ public class OrderService {
         orderRepository.save(order);
 
         redisTemplate.delete("order:reserve:" + order.getOrderCode());
-    }
-
-    @Transactional
-    public void markFailed(String orderCode) {
-        Order order = orderRepository.findByOrderCode(orderCode)
-                .orElseThrow(() -> new AppException(ErrorCode.RESOURCE_NOT_FOUND, "Order not found"));
-
-        if (order.getOrderStatus() != OrderStatus.PENDING) return;
-
-        order.setOrderStatus(OrderStatus.PAYMENT_FAILED);
-
-        List<OrderItemRequest> items = order.getOrderItems()
-                .stream()
-                .map(item -> OrderItemRequest.builder()
-                        .ticketTypeId(item.getTicketTypeId())
-                        .quantity(Math.toIntExact(item.getQuantity()))
-                        .build()
-                )
-                .toList();
-
-        inventoryFeignClient.releaseTickets(items);
-
-        redisTemplate.delete("order:reserve:" + orderCode);
 
         EventDetailResponse event = inventoryFeignClient.getEventDetail(order.getEventId()).getData();
         DateTimeFormatter timeFormatter = DateTimeFormatter.ofPattern("HH:mm");
@@ -197,6 +174,29 @@ public class OrderService {
                         .toList())
                 .build();
         redisStreamProducer.sendMessage("order-confirm", emailDto);
+    }
+
+    @Transactional
+    public void markFailed(String orderCode) {
+        Order order = orderRepository.findByOrderCode(orderCode)
+                .orElseThrow(() -> new AppException(ErrorCode.RESOURCE_NOT_FOUND, "Order not found"));
+
+        if (order.getOrderStatus() != OrderStatus.PENDING) return;
+
+        order.setOrderStatus(OrderStatus.PAYMENT_FAILED);
+
+        List<OrderItemRequest> items = order.getOrderItems()
+                .stream()
+                .map(item -> OrderItemRequest.builder()
+                        .ticketTypeId(item.getTicketTypeId())
+                        .quantity(Math.toIntExact(item.getQuantity()))
+                        .build()
+                )
+                .toList();
+
+        inventoryFeignClient.releaseTickets(items);
+
+        redisTemplate.delete("order:reserve:" + orderCode);
     }
 
     @Transactional

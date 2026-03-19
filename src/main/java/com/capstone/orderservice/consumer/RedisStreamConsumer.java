@@ -93,7 +93,7 @@ public class RedisStreamConsumer implements StreamListener<String, MapRecord<Str
     }
 
     private void filterMessage(String payload, String stream) {
-        log.info("Processing: {}", payload);
+        log.info("Processing: {} {}", stream, payload);
 
         switch (stream) {
             case "payment-success" -> handlePaymentSuccessEvent(payload);
