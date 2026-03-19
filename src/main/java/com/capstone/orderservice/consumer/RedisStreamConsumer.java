@@ -1,5 +1,6 @@
 package com.capstone.orderservice.consumer;
 
+import com.capstone.orderservice.dto.event.CommitTicketEvent;
 import com.capstone.orderservice.dto.event.PaymentSuccessEvent;
 import com.capstone.orderservice.exception.AppException;
 import com.capstone.orderservice.exception.ErrorCode;
@@ -104,8 +105,8 @@ public class RedisStreamConsumer implements StreamListener<String, MapRecord<Str
 
     private void handleCommitSuccessEvent(String payload) {
         try {
-            String orderCode = objectMapper.readValue(payload, String.class);
-            orderService.markPaid(orderCode);
+            CommitTicketEvent event = objectMapper.readValue(payload, CommitTicketEvent.class);
+            orderService.markPaid(event.getOrderCode());
         } catch (Exception e) {
             log.error("Error processing OTP event", e);
         }
