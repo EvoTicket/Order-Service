@@ -114,8 +114,8 @@ public class RedisStreamConsumer implements StreamListener<String, MapRecord<Str
 
     private void handleCommitFailedEvent(String payload) {
         try {
-            String orderCode = objectMapper.readValue(payload, String.class);
-            orderService.markFailed(orderCode);
+            CommitTicketEvent event = objectMapper.readValue(payload, CommitTicketEvent.class);
+            orderService.markFailed(event.getOrderCode());
         } catch (Exception e) {
             log.error("Error processing OTP event", e);
         }

@@ -1,12 +1,11 @@
 package com.capstone.orderservice.dto.event;
 
-import com.fasterxml.jackson.annotation.JsonFormat;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
-import java.time.LocalDateTime;
+import java.math.BigDecimal;
 
 @Data
 @NoArgsConstructor
@@ -15,7 +14,7 @@ import java.time.LocalDateTime;
 public class PaymentSuccessEvent {
     private Long orderCode;
 
-    private Long amount;
+    private BigDecimal amount;
 
     private String description;
 
