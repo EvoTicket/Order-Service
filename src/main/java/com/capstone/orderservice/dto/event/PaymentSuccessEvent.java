@@ -12,7 +12,7 @@ import java.math.BigDecimal;
 @AllArgsConstructor
 @Builder
 public class PaymentSuccessEvent {
-    private Long orderCode;
+    private String orderCode;
 
     private String transactionDateTime;
 

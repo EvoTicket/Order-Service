@@ -201,7 +201,7 @@ public class OrderService {
 
     @Transactional
     public void commitTicket(PaymentSuccessEvent paymentSuccessEvent){
-        Order order = orderRepository.findByOrderCode(paymentSuccessEvent.getOrderCode().toString()).orElseThrow(() -> {
+        Order order = orderRepository.findByOrderCode(paymentSuccessEvent.getOrderCode()).orElseThrow(() -> {
             log.error("Cannot find order code {}", paymentSuccessEvent.getOrderCode());
             return new AppException(ErrorCode.RESOURCE_NOT_FOUND, "Order not found");
         });
@@ -278,8 +278,9 @@ public class OrderService {
     }
 
     @Transactional(readOnly = true)
-    public OrderInternalResponse getOrdersDetail(Long id) {
-        Order order = orderUtil.getOrderById(id);
+    public OrderInternalResponse getOrdersDetail(String orderCode) {
+        Order order = orderRepository.findByOrderCode(orderCode)
+                .orElseThrow(() -> new AppException(ErrorCode.RESOURCE_NOT_FOUND, "Order not found"));
         return OrderInternalResponse.fromEntity(order);
     }
 

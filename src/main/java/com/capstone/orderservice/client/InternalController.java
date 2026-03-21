@@ -17,9 +17,9 @@ public class InternalController {
 
     @GetMapping("/orders/detail")
     public ResponseEntity<BaseResponse<OrderInternalResponse>> getOrderDetail(
-            @RequestParam Long orderId
+            @RequestParam String orderCode
     ){
-        OrderInternalResponse response = orderService.getOrdersDetail(orderId);
+        OrderInternalResponse response = orderService.getOrdersDetail(orderCode);
         return ResponseEntity.ok(BaseResponse.ok("Lấy đơn hàng thành công", response));
     }
 }
