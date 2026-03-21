@@ -14,10 +14,6 @@ import java.math.BigDecimal;
 public class PaymentSuccessEvent {
     private Long orderCode;
 
-    private BigDecimal amount;
-
-    private String description;
-
     private String transactionDateTime;
 
     private String transactionId;
