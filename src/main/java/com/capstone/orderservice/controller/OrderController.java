@@ -88,9 +88,9 @@ public class OrderController {
         return ResponseEntity.ok(BaseResponse.ok("Lấy danh sách đơn hàng thành công", pageResponse));
     }
 
-    @PostMapping("/{orderId}/cancel")
-    public ResponseEntity<BaseResponse<Void>> cancelOrder(@PathVariable Long orderId) {
-        orderService.cancelOrder(orderId);
-        return ResponseEntity.ok(BaseResponse.ok("Hủy đơn hàng thành công", null));
+    @PostMapping("/{orderCode}/cancel")
+    public ResponseEntity<BaseResponse<Boolean>> cancelOrder(@PathVariable String orderCode) {
+        orderService.cancelOrder(orderCode);
+        return ResponseEntity.ok(BaseResponse.ok("Hủy đơn hàng thành công", true));
     }
 }

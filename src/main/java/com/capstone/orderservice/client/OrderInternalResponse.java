@@ -1,6 +1,7 @@
 package com.capstone.orderservice.client;
 
 import com.capstone.orderservice.entity.Order;
+import com.capstone.orderservice.enums.PaymentMethod;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -15,6 +16,7 @@ import java.util.List;
 @AllArgsConstructor
 public class OrderInternalResponse {
     private Long id;
+    private PaymentMethod paymentMethod;
     private String orderCode;
     private String eventName;
     private String buyerName;
@@ -27,6 +29,7 @@ public class OrderInternalResponse {
         return OrderInternalResponse.builder()
                 .id(order.getId())
                 .orderCode(order.getOrderCode())
+                .paymentMethod(order.getPaymentMethod())
                 .eventName(order.getEventName())
                 .buyerEmail(order.getEmail())
                 .buyerName(order.getFullName())

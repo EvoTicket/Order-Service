@@ -1,13 +1,10 @@
 package com.capstone.orderservice.service;
 
-import com.capstone.orderservice.client.EventDetailResponse;
-import com.capstone.orderservice.client.InventoryFeignClient;
-import com.capstone.orderservice.client.ListTicketTypesInternalResponse;
+import com.capstone.orderservice.client.*;
 import com.capstone.orderservice.dto.event.OrderConfirmEvent;
 import com.capstone.orderservice.dto.event.OrderPaidEvent;
 import com.capstone.orderservice.dto.event.PaymentSuccessEvent;
 import com.capstone.orderservice.dto.request.CreateOrderRequest;
-import com.capstone.orderservice.client.OrderInternalResponse;
 import com.capstone.orderservice.dto.request.OrderItemRequest;
 import com.capstone.orderservice.dto.response.OrderResponse;
 import com.capstone.orderservice.entity.Order;
@@ -51,6 +48,7 @@ public class OrderService {
     private final RedisTemplate<String, Object> redisTemplate;
     private final RedisStreamProducer redisStreamProducer;
     private final ObjectMapper objectMapper;
+    private final PaymentFeignClient paymentFeignClient;
 
     @Transactional
     public OrderResponse createOrder(CreateOrderRequest request) {
@@ -201,10 +199,7 @@ public class OrderService {
 
     @Transactional
     public void commitTicket(PaymentSuccessEvent paymentSuccessEvent){
-        Order order = orderRepository.findByOrderCode(paymentSuccessEvent.getOrderCode()).orElseThrow(() -> {
-            log.error("Cannot find order code {}", paymentSuccessEvent.getOrderCode());
-            return new AppException(ErrorCode.RESOURCE_NOT_FOUND, "Order not found");
-        });
+        Order order = orderUtil.getOrderByOrderCode(paymentSuccessEvent.getOrderCode());
         order.setTransactionId(paymentSuccessEvent.getTransactionId());
         order.setTransactionDateTime(paymentSuccessEvent.getTransactionDateTime());
 
@@ -252,8 +247,8 @@ public class OrderService {
 
 
     @Transactional
-    public void cancelOrder(Long id) {
-        Order order = orderUtil.getOrderById(id);
+    public void cancelOrder(String orderCode) {
+        Order order = orderUtil.getOrderByOrderCode(orderCode);
 
         if (!order.getOrderStatus().canBeCancelled()) {
             throw new AppException(
@@ -271,7 +266,17 @@ public class OrderService {
                 )
                 .toList();
 
-        inventoryFeignClient.releaseTickets(items);
+        boolean releaseSuccess = Boolean.TRUE.equals(
+                inventoryFeignClient.releaseTickets(items).getData()
+        );
+
+        boolean cancelSuccess = Boolean.TRUE.equals(
+                paymentFeignClient.cancelPayment(order.getOrderCode()).getData()
+        );
+
+        if (!releaseSuccess || !cancelSuccess) {
+            throw new AppException(ErrorCode.INTERNAL_SERVER_ERROR, "Huỷ đơn thất bại ở inventory hoặc payment");
+        }
 
         order.setOrderStatus(OrderStatus.CANCELLED);
         orderRepository.save(order);
