@@ -277,6 +277,7 @@ public class OrderService {
         if (!releaseSuccess || !cancelSuccess) {
             throw new AppException(ErrorCode.INTERNAL_SERVER_ERROR, "Huỷ đơn thất bại ở inventory hoặc payment");
         }
+        redisTemplate.delete("order:reserve:" + orderCode);
 
         order.setOrderStatus(OrderStatus.CANCELLED);
         orderRepository.save(order);
