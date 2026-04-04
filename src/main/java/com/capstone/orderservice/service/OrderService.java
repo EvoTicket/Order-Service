@@ -6,6 +6,7 @@ import com.capstone.orderservice.dto.event.OrderPaidEvent;
 import com.capstone.orderservice.dto.event.PaymentSuccessEvent;
 import com.capstone.orderservice.dto.request.CreateOrderRequest;
 import com.capstone.orderservice.dto.request.OrderItemRequest;
+import com.capstone.orderservice.dto.response.EventVolumeDto;
 import com.capstone.orderservice.dto.response.OrderResponse;
 import com.capstone.orderservice.entity.Order;
 import com.capstone.orderservice.entity.OrderItem;
@@ -30,9 +31,12 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.Duration;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.stream.Collectors;
 
@@ -295,5 +299,50 @@ public class OrderService {
                 .map(item -> item.getUnitPrice().multiply(BigDecimal.valueOf(item.getQuantity())))
                 .reduce(BigDecimal.ZERO, BigDecimal::add)
                 .setScale(2, RoundingMode.HALF_UP);
+    }
+
+    @Transactional(readOnly = true)
+    public Map<Long, EventVolumeDto> getVolumeForEvents(List<Long> eventIds) {
+        if (eventIds == null || eventIds.isEmpty()) {
+            return Collections.emptyMap();
+        }
+
+        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime oneDayAgo = now.minusDays(1);
+        LocalDateTime twoDaysAgo = now.minusDays(2);
+
+        List<Object[]> results = orderRepository.calculateVolumeForEvents(eventIds, oneDayAgo, twoDaysAgo);
+
+        return results.stream()
+                .map(row -> {
+                    Long eventId = (Long) row[0];
+                    BigDecimal volume24h = row[1] != null ? (BigDecimal) row[1] : BigDecimal.ZERO;
+                    BigDecimal volumePrev24h = row[2] != null ? (BigDecimal) row[2] : BigDecimal.ZERO;
+
+                    return EventVolumeDto.builder()
+                            .eventId(eventId)
+                            .volume24h(volume24h)
+                            .hotness(getHotness(volume24h, volumePrev24h))
+                            .build();
+                })
+                .collect(Collectors.toMap(EventVolumeDto::getEventId, dto -> dto));
+    }
+
+    private double getHotness(BigDecimal volume24h, BigDecimal volumePrev24h) {
+        if (volumePrev24h.compareTo(BigDecimal.ZERO) > 0) {
+            return volume24h.subtract(volumePrev24h)
+                    .divide(volumePrev24h, 4, RoundingMode.HALF_UP)
+                    .multiply(BigDecimal.valueOf(100))
+                    .doubleValue();
+        } else if (volume24h.compareTo(BigDecimal.ZERO) > 0) {
+            return 100.0;
+        } else {
+            return 0.0;
+        }
+    }
+
+    @Transactional(readOnly = true)
+    public List<Long> getPurchasedEventIdsByUserId(Long userId) {
+        return orderRepository.findPurchasedEventIdsByUserId(userId);
     }
 }

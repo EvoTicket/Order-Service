@@ -14,6 +14,7 @@ spring:
       service-name: order-service
       allowed-services:
         - payment-service
+        - inventory-service
   datasource:
     url: ${DB_URL}
     username: ${DB_USERNAME}
