@@ -81,6 +81,7 @@ public class OrderService {
         if (response == null) {
             throw new AppException(ErrorCode.INTERNAL_SERVER_ERROR, "Lấy ticket lỗi");
         }
+        order.setEventId(response.getEventId());
 
         for (ListTicketTypesInternalResponse.TicketDetailResponse ticket : response.getTicketDetails()) {
 

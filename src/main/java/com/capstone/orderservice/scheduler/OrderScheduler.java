@@ -6,6 +6,7 @@ import com.capstone.orderservice.entity.Order;
 import com.capstone.orderservice.enums.OrderStatus;
 import com.capstone.orderservice.repository.OrderRepository;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
@@ -13,6 +14,7 @@ import org.springframework.stereotype.Component;
 import java.time.LocalDateTime;
 import java.util.List;
 
+@Slf4j
 @Component
 @RequiredArgsConstructor
 public class OrderScheduler {
@@ -46,7 +48,7 @@ public class OrderScheduler {
                         .toList();
 
                 inventoryFeignClient.releaseTickets(items);
-                System.out.println("Released tickets for order " + order.getOrderCode());
+                log.info("Released tickets for order: {}", order.getOrderCode());
                 redisTemplate.delete(key);
             }
 

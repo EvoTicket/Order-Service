@@ -60,6 +60,9 @@ public class Order {
     @Builder.Default
     private List<OrderItem> orderItems = new ArrayList<>();
 
+    @Column(name = "event_id")
+    private Long eventId;
+
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;
 
