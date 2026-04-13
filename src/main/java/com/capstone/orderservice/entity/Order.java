@@ -39,12 +39,6 @@ public class Order {
     @Enumerated(EnumType.STRING)
     private PaymentMethod paymentMethod;
 
-    @Column(name = "event_id")
-    private Long eventId;
-
-    @Column(name = "event_name")
-    private String eventName;
-
     @Column(name = "total_amount")
     private BigDecimal totalAmount;
 
@@ -71,12 +65,6 @@ public class Order {
 
     @Column(name = "updated_at")
     private LocalDateTime updatedAt;
-
-    @Column(name = "transaction_id")
-    private String transactionId;
-
-    @Column(name = "transaction_date_time")
-    private String transactionDateTime;
 
     @PrePersist
     protected void onCreate() {

@@ -13,6 +13,7 @@ import java.util.List;
 public class ListTicketTypesInternalResponse {
     Long eventId;
     String eventName;
+    Long showtimeId;
     List<TicketDetailResponse> ticketDetails;
 
     @Getter

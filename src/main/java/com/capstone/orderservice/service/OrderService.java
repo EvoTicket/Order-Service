@@ -81,8 +81,6 @@ public class OrderService {
         if (response == null) {
             throw new AppException(ErrorCode.INTERNAL_SERVER_ERROR, "Lấy ticket lỗi");
         }
-        order.setEventId(response.getEventId());
-        order.setEventName(response.getEventName());
 
         for (ListTicketTypesInternalResponse.TicketDetailResponse ticket : response.getTicketDetails()) {
 
@@ -135,8 +133,43 @@ public class OrderService {
 
         redisTemplate.delete("order:reserve:" + order.getOrderCode());
 
-        EventDetailResponse event = inventoryFeignClient.getEventDetail(order.getEventId()).getData();
+        PaymentTransactionResponse payment = paymentFeignClient.getPaymentInfo(order.getOrderCode()).getData();
+        EventDetailInternalResponse event = inventoryFeignClient.getEventDetailsByTicketTypeId(
+                order.getOrderItems().stream()
+                .findFirst()
+                .map(OrderItem::getTicketTypeId)
+                .orElse(null)
+        ).getData();
+        DateTimeFormatter dateFormatter = DateTimeFormatter.ofPattern("EEEE, dd/MM/yyyy", Locale.forLanguageTag("vi"));
         DateTimeFormatter timeFormatter = DateTimeFormatter.ofPattern("HH:mm");
+
+        EventDetailInternalResponse.ShowtimeDetail showtime = event.getShowtime();
+
+        String showtimeDate = "";
+        String showtimeTime = "";
+        String showtimeLocation = "";
+        String showtimeAddress = "";
+
+        if (showtime != null) {
+            showtimeDate = showtime.getStartDatetime().format(dateFormatter);
+
+            showtimeTime = showtime.getStartDatetime().format(timeFormatter)
+                    + " - "
+                    + showtime.getEndDatetime().format(timeFormatter);
+
+            showtimeLocation = showtime.getVenue();
+            showtimeAddress = showtime.getFullAddress();
+        } else if (event.getEventStartTime() != null) {
+            showtimeDate = event.getEventStartTime().format(dateFormatter);
+
+            showtimeTime = event.getEventStartTime().format(timeFormatter)
+                    + " - "
+                    + event.getEventEndTime().format(timeFormatter);
+
+            showtimeLocation = event.getVenue();
+            showtimeAddress = event.getAddress();
+        }
+
         OrderConfirmEvent emailDto = OrderConfirmEvent.builder()
                 .email(order.getEmail())
                 .fullName(order.getFullName())
@@ -150,22 +183,21 @@ public class OrderService {
                 .discountAmount(order.getDiscountAmount())
                 .ticketDownloadUrl("https://evoticket.vn/tickets/" + order.getOrderCode())
                 .eventName(event.getEventName())
-                .eventDate(
-                        event.getEventStartTime().format(
-                                DateTimeFormatter.ofPattern("EEEE, dd/MM/yyyy", Locale.forLanguageTag("vi"))
-                        )
-                )
-                .eventTime(
-                        event.getEventStartTime().format(timeFormatter)
-                                + " - " +
-                                event.getEventEndTime().format(timeFormatter)
-                )
+                .eventDate(event.getEventStartTime() != null
+                        ? event.getEventStartTime().format(dateFormatter) : "")
+                .eventTime(event.getEventStartTime() != null
+                        ? event.getEventStartTime().format(timeFormatter) + " - " + event.getEventEndTime().format(timeFormatter)
+                        : "")
                 .eventLocation(event.getVenue())
                 .eventAddress(event.getAddress() != null ? event.getAddress() : "")
                 .organizerName(event.getOrganizerName())
+                .showtimeDate(showtimeDate)
+                .showtimeTime(showtimeTime)
+                .showtimeLocation(showtimeLocation)
+                .showtimeAddress(showtimeAddress)
                 .paymentMethod(order.getPaymentMethod().name())
-                .transactionId(order.getTransactionId())
-                .paidAt(order.getTransactionDateTime())
+                .transactionId(payment.getTransactionId())
+                .paidAt(payment.getTransactionDateTime())
                 .ticketItems(order.getOrderItems().stream()
                         .map(item -> OrderConfirmEvent.TicketItemDto.builder()
                                 .ticketTypeName(item.getTicketTypeName())
@@ -204,8 +236,6 @@ public class OrderService {
     @Transactional
     public void commitTicket(PaymentSuccessEvent paymentSuccessEvent){
         Order order = orderUtil.getOrderByOrderCode(paymentSuccessEvent.getOrderCode());
-        order.setTransactionId(paymentSuccessEvent.getTransactionId());
-        order.setTransactionDateTime(paymentSuccessEvent.getTransactionDateTime());
 
         List<OrderItemRequest> orderItemInternalResponses = order.getOrderItems()
                 .stream()
