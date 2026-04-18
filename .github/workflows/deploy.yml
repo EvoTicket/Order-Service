@@ -187,10 +187,10 @@ jobs:
           IMAGE="${{ secrets.DOCKER_USERNAME }}/${{ secrets.DOCKER_IMAGE_NAME }}:${{ needs.build-and-push.outputs.image_tag }}"
       
           if [ "$STATUS" = "success" ]; then
-            TITLE="🚀 Deployment Successful - API GATEWAY"
+            TITLE="🚀 Deployment Successful - ORDER SERVICE"
             COLOR="good"
           else
-            TITLE="❌ Deployment Failed - API Gateway"
+            TITLE="❌ Deployment Failed - ORDER SERVICE"
             COLOR="danger"
           fi
       
