@@ -178,3 +178,35 @@ jobs:
           echo "- **Status:** Deployed to VPS" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "View logs: \`ssh ${{ secrets.VPS_USERNAME }}@${{ secrets.VPS_HOST }} 'cd ${{ secrets.VPS_DEPLOY_PATH || '~/app' }} && docker-compose logs -f'\`" >> $GITHUB_STEP_SUMMARY
+
+      - name: Notify Slack (Final)
+        if: always()
+        run: |
+          STATUS="${{ job.status }}"
+          VERSION="${{ needs.build-and-push.outputs.version }}"
+          IMAGE="${{ secrets.DOCKER_USERNAME }}/${{ secrets.DOCKER_IMAGE_NAME }}:${{ needs.build-and-push.outputs.image_tag }}"
+      
+          if [ "$STATUS" = "success" ]; then
+            TITLE="🚀 Deployment Successful - API GATEWAY"
+            COLOR="good"
+          else
+            TITLE="❌ Deployment Failed - API Gateway"
+            COLOR="danger"
+          fi
+      
+          curl -X POST -H 'Content-type: application/json' \
+          --data "{
+            \"attachments\": [
+              {
+                \"color\": \"$COLOR\",
+                \"title\": \"$TITLE\",
+                \"fields\": [
+                  {\"title\": \"Version\", \"value\": \"$VERSION\", \"short\": true},
+                  {\"title\": \"Image\", \"value\": \"$IMAGE\", \"short\": false},
+                  {\"title\": \"Status\", \"value\": \"$STATUS\", \"short\": true}
+                ],
+                \"footer\": \"GitHub Actions\",
+                \"ts\": $(date +%s)
+              }
+            ]
+          }" \
