@@ -108,6 +108,90 @@ jobs:
           prerelease: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          
+      # ─────────────────────────────────────────
+      # SONARQUBE ANALYSIS & QUALITY GATE
+      # ─────────────────────────────────────────
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '21'
+
+      - name: Grant permission
+        run: chmod +x gradlew
+
+      - name: Cache Gradle & SonarQube packages
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+            ~/.sonar/cache
+          key: ${{ runner.os }}-gradle-sonar-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
+          restore-keys: ${{ runner.os }}-gradle-sonar-
+
+      - name: Build & SonarQube Scan
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
+        run: |
+          ./gradlew build sonar -x test \
+            -Dsonar.host.url=${{ secrets.SONAR_HOST_URL }} \
+            -Dsonar.token=${{ secrets.SONAR_TOKEN }} \
+            -Dsonar.qualitygate.wait=true \
+            --info
+
+      - name: Verify custom quality conditions
+        run: |
+          echo "🔍 Checking SonarQube metrics..."
+
+          METRICS=$(curl -s -u "${{ secrets.SONAR_TOKEN }}:" \
+            "${{ secrets.SONAR_HOST_URL }}/api/measures/component?component=${{ secrets.SONAR_PROJECT_KEY }}&metricKeys=security_rating,reliability_rating,sqale_rating,blocker_violations")
+
+          SECURITY=$(echo "$METRICS"        | jq -r '.component.measures[] | select(.metric=="security_rating")    | .value')
+          RELIABILITY=$(echo "$METRICS"     | jq -r '.component.measures[] | select(.metric=="reliability_rating") | .value')
+          MAINTAINABILITY=$(echo "$METRICS" | jq -r '.component.measures[] | select(.metric=="sqale_rating")       | .value')
+          BLOCKERS=$(echo "$METRICS"        | jq -r '.component.measures[] | select(.metric=="blocker_violations")  | .value')
+
+          echo "Security rating:        $SECURITY (1=A)"
+          echo "Reliability rating:     $RELIABILITY (1=A)"
+          echo "Maintainability rating: $MAINTAINABILITY (1=A)"
+          echo "Blocker violations:     $BLOCKERS"
+
+          FAILED=false
+          [ "$SECURITY"        != "1.0" ] && echo "❌ Security must be A (got $SECURITY)"               && FAILED=true
+          [ "$RELIABILITY"     != "1.0" ] && echo "❌ Reliability must be A (got $RELIABILITY)"         && FAILED=true
+          [ "$MAINTAINABILITY" != "1.0" ] && echo "❌ Maintainability must be A (got $MAINTAINABILITY)" && FAILED=true
+          [ "$BLOCKERS"        != "0" ] && echo "❌ Blocker violations must be 0 (got $BLOCKERS)"      && FAILED=true
+
+          if [ "$FAILED" = "true" ]; then
+            echo "🚫 Quality gate failed — blocking deployment"
+            exit 1
+          fi
+
+          echo "✅ All quality conditions passed!"
+          echo "   Security: A | Reliability: A | Maintainability: A | Blockers: 0"
+
+      - name: Notify Slack on SonarQube failure
+        if: failure()
+        run: |
+          curl -s -X POST -H 'Content-type: application/json' \
+          --data "{
+            \"attachments\": [{
+              \"color\": \"danger\",
+              \"title\": \"🔴 SonarQube Quality Gate FAILED - INVENTORY SERVICE\",
+              \"fields\": [
+                {\"title\": \"Version\",   \"value\": \"${{ steps.extract_info.outputs.version }}\", \"short\": true},
+                {\"title\": \"Branch\",    \"value\": \"${{ steps.extract_info.outputs.branch }}\",  \"short\": true},
+                {\"title\": \"Reason\",    \"value\": \"Security/Reliability/Maintainability phải đạt A và Blocker = 0\", \"short\": false},
+                {\"title\": \"SonarQube\", \"value\": \"${{ secrets.SONAR_HOST_URL }}/dashboard?id=${{ secrets.SONAR_PROJECT_KEY }}\", \"short\": false}
+              ],
+              \"footer\": \"GitHub Actions\",
+              \"ts\": $(date +%s)
+            }]
+          }" \
+          ${{ secrets.SLACK_WEBHOOK_URL }}
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
