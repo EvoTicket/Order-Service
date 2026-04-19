@@ -81,3 +81,10 @@ management:
       show-details: always
     prometheus:
       enabled: true
+  tracing:
+    sampling:
+      probability: 0.1
+  otlp:
+    tracing:
+      endpoint: http://otel-collector:4318/v1/traces
+
