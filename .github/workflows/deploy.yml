@@ -180,7 +180,7 @@ jobs:
           --data "{
             \"attachments\": [{
               \"color\": \"danger\",
-              \"title\": \"🔴 SonarQube Quality Gate FAILED - INVENTORY SERVICE\",
+              \"title\": \"🔴 SonarQube Quality Gate FAILED - ORDER SERVICE\",
               \"fields\": [
                 {\"title\": \"Version\",   \"value\": \"${{ steps.extract_info.outputs.version }}\", \"short\": true},
                 {\"title\": \"Branch\",    \"value\": \"${{ steps.extract_info.outputs.branch }}\",  \"short\": true},
