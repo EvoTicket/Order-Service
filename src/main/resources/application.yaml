@@ -88,3 +88,6 @@ management:
     tracing:
       endpoint: http://otel-collector:4318/v1/traces
 
+logging:
+  pattern:
+    level: "%5p [traceId=%X{traceId}, spanId=%X{spanId}]"
