@@ -1,9 +1,12 @@
 package com.capstone.orderservice.scheduler;
 
 import com.capstone.orderservice.client.InventoryFeignClient;
+import com.capstone.orderservice.client.PaymentFeignClient;
 import com.capstone.orderservice.dto.request.OrderItemRequest;
 import com.capstone.orderservice.entity.Order;
 import com.capstone.orderservice.enums.OrderStatus;
+import com.capstone.orderservice.exception.AppException;
+import com.capstone.orderservice.exception.ErrorCode;
 import com.capstone.orderservice.repository.OrderRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -20,6 +23,7 @@ import java.util.List;
 public class OrderScheduler {
     private final OrderRepository orderRepository;
     private final InventoryFeignClient inventoryFeignClient;
+    private final PaymentFeignClient paymentFeignClient;
     private final RedisTemplate<String, Object> redisTemplate;
 
     @Scheduled(fixedRate = 60000)
@@ -48,6 +52,8 @@ public class OrderScheduler {
                         .toList();
 
                 inventoryFeignClient.releaseTickets(items);
+                paymentFeignClient.cancelPayment(order.getOrderCode());
+
                 log.info("Released tickets for order: {}", order.getOrderCode());
                 redisTemplate.delete(key);
             }
