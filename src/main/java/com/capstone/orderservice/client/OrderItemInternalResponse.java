@@ -17,6 +17,8 @@ public class OrderItemInternalResponse {
     private Long quantity;
     private BigDecimal unitPrice;
     private BigDecimal subtotal;
+    private String ticketCode;
+    private String tokenId;
     private LocalDateTime createdAt;
 
     public static OrderItemInternalResponse fromEntity(OrderItem item) {
@@ -27,6 +29,8 @@ public class OrderItemInternalResponse {
                 .quantity(item.getQuantity())
                 .unitPrice(item.getUnitPrice())
                 .subtotal(item.getSubtotal())
+                .ticketCode(item.getTicketCode())
+                .tokenId(item.getTokenId())
                 .createdAt(item.getCreatedAt())
                 .build();
     }

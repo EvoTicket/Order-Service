@@ -37,6 +37,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.UUID;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.stream.Collectors;
 
@@ -89,16 +90,20 @@ public class OrderService {
                 throw new AppException(ErrorCode.RESOURCE_NOT_FOUND, "Ticket không tồn tại");
             }
 
-            OrderItem orderItem = OrderItem.builder()
-                    .order(order)
-                    .ticketTypeId(ticket.getTicketTypeId())
-                    .quantity(ticket.getQuantity())
-                    .unitPrice(ticket.getPrice())
-                    .ticketTypeName(ticket.getTicketTypeName())
-                    .build();
+            for (int i = 0; i < ticket.getQuantity(); i++) {
+                String ticketCode = UUID.randomUUID().toString();
+                OrderItem orderItem = OrderItem.builder()
+                        .order(order)
+                        .ticketTypeId(ticket.getTicketTypeId())
+                        .quantity(1L)
+                        .unitPrice(ticket.getPrice())
+                        .ticketTypeName(ticket.getTicketTypeName())
+                        .ticketCode(ticketCode)
+                        .build();
 
-            orderItem.calculateSubtotal();
-            order.addOrderItem(orderItem);
+                orderItem.calculateSubtotal();
+                order.addOrderItem(orderItem);
+            }
         }
 
         BigDecimal totalAmount = calculateTotalAmount(order.getOrderItems());
@@ -200,12 +205,18 @@ public class OrderService {
                 .transactionId(payment.getTransactionId())
                 .paidAt(payment.getTransactionDateTime())
                 .ticketItems(order.getOrderItems().stream()
-                        .map(item -> OrderConfirmEvent.TicketItemDto.builder()
-                                .ticketTypeName(item.getTicketTypeName())
-                                .quantity(item.getQuantity())
-                                .unitPrice(item.getUnitPrice())
-                                .subtotal(item.getUnitPrice().multiply(BigDecimal.valueOf(item.getQuantity())))
-                                .build())
+                        .collect(Collectors.groupingBy(OrderItem::getTicketTypeId))
+                        .values().stream()
+                        .map(itemsList -> {
+                            OrderItem first = itemsList.get(0);
+                            long totalQuantity = itemsList.stream().mapToLong(OrderItem::getQuantity).sum();
+                            return OrderConfirmEvent.TicketItemDto.builder()
+                                    .ticketTypeName(first.getTicketTypeName())
+                                    .quantity(totalQuantity)
+                                    .unitPrice(first.getUnitPrice())
+                                    .subtotal(first.getUnitPrice().multiply(BigDecimal.valueOf(totalQuantity)))
+                                    .build();
+                        })
                         .toList())
                 .build();
         redisStreamProducer.sendMessage("order-confirm", emailDto);
@@ -222,9 +233,11 @@ public class OrderService {
 
         List<OrderItemRequest> items = order.getOrderItems()
                 .stream()
-                .map(item -> OrderItemRequest.builder()
-                        .ticketTypeId(item.getTicketTypeId())
-                        .quantity(Math.toIntExact(item.getQuantity()))
+                .collect(Collectors.groupingBy(OrderItem::getTicketTypeId))
+                .entrySet().stream()
+                .map(entry -> OrderItemRequest.builder()
+                        .ticketTypeId(entry.getKey())
+                        .quantity(entry.getValue().stream().mapToInt(item -> Math.toIntExact(item.getQuantity())).sum())
                         .build()
                 )
                 .toList();
@@ -240,9 +253,11 @@ public class OrderService {
 
         List<OrderItemRequest> orderItemInternalResponses = order.getOrderItems()
                 .stream()
-                .map(item -> OrderItemRequest.builder()
-                        .ticketTypeId(item.getTicketTypeId())
-                        .quantity(Math.toIntExact(item.getQuantity()))
+                .collect(Collectors.groupingBy(OrderItem::getTicketTypeId))
+                .entrySet().stream()
+                .map(entry -> OrderItemRequest.builder()
+                        .ticketTypeId(entry.getKey())
+                        .quantity(entry.getValue().stream().mapToInt(item -> Math.toIntExact(item.getQuantity())).sum())
                         .build()
                 )
                 .toList();
@@ -294,9 +309,11 @@ public class OrderService {
 
         List<OrderItemRequest> items = order.getOrderItems()
                 .stream()
-                .map(item -> OrderItemRequest.builder()
-                        .ticketTypeId(item.getTicketTypeId())
-                        .quantity(Math.toIntExact(item.getQuantity()))
+                .collect(Collectors.groupingBy(OrderItem::getTicketTypeId))
+                .entrySet().stream()
+                .map(entry -> OrderItemRequest.builder()
+                        .ticketTypeId(entry.getKey())
+                        .quantity(entry.getValue().stream().mapToInt(item -> Math.toIntExact(item.getQuantity())).sum())
                         .build()
                 )
                 .toList();

@@ -36,6 +36,12 @@ public class OrderItem {
     @Column(name = "unit_price")
     private BigDecimal unitPrice;
 
+    @Column(name = "ticket_code")
+    private String ticketCode;
+
+    @Column(name = "token_id")
+    private String tokenId;
+
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;
 
