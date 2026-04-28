@@ -26,9 +26,8 @@ public class CreateOrderRequest {
     @Schema(example = "PAYOS")
     private PaymentMethod paymentMethod;
 
-    @NotEmpty(message = "Danh sách sản phẩm không được để trống")
-    @Valid
-    private List<OrderItemRequest> items;
+    @NotEmpty(message = "Booking Session ID không được để trống")
+    private String bookingSessionId;
 
     private List<Long> voucherIds;
 }

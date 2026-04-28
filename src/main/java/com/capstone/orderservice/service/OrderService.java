@@ -4,10 +4,12 @@ import com.capstone.orderservice.client.*;
 import com.capstone.orderservice.dto.event.OrderConfirmEvent;
 import com.capstone.orderservice.dto.event.OrderPaidEvent;
 import com.capstone.orderservice.dto.event.PaymentSuccessEvent;
+import com.capstone.orderservice.dto.request.BookingSessionData;
 import com.capstone.orderservice.dto.request.CreateOrderRequest;
 import com.capstone.orderservice.dto.request.OrderItemRequest;
 import com.capstone.orderservice.dto.response.EventVolumeDto;
 import com.capstone.orderservice.dto.response.OrderResponse;
+import com.capstone.orderservice.dto.response.PaymentLinkResponse;
 import com.capstone.orderservice.entity.Order;
 import com.capstone.orderservice.entity.OrderItem;
 import com.capstone.orderservice.enums.OrderStatus;
@@ -56,8 +58,31 @@ public class OrderService {
     private final PaymentFeignClient paymentFeignClient;
 
     @Transactional
-    public OrderResponse createOrder(CreateOrderRequest request) {
-        inventoryFeignClient.reserveTickets(request.getItems());
+    public PaymentLinkResponse createOrder(CreateOrderRequest request) {
+        String sessionDataKey = "booking:data:" + request.getBookingSessionId();
+        String sessionJson = (String) redisTemplate.opsForValue().get(sessionDataKey);
+        if (sessionJson == null) {
+            throw new AppException(ErrorCode.BAD_REQUEST, "Booking session đã hết hạn hoặc không tồn tại");
+        }
+
+        BookingSessionData sessionData;
+        try {
+            sessionData = objectMapper.readValue(sessionJson, BookingSessionData.class);
+        } catch (JsonProcessingException e) {
+            throw new AppException(ErrorCode.INTERNAL_SERVER_ERROR, "Lỗi đọc dữ liệu booking session");
+        }
+
+        Long currentUserId = jwtUtil.getDataFromAuth().userId();
+        if (!String.valueOf(currentUserId).equals(sessionData.getUserId())) {
+            throw new AppException(ErrorCode.UNAUTHORIZED, "User không khớp với booking session");
+        }
+
+        List<OrderItemRequest> requestItems = sessionData.getItems().stream()
+                .map(item -> OrderItemRequest.builder()
+                        .ticketTypeId(item.getTicketTypeId())
+                        .quantity(item.getQty())
+                        .build())
+                .toList();
 
         String datePart = LocalDate.now()
                 .format(DateTimeFormatter.ofPattern("ddMMyy"));
@@ -76,9 +101,10 @@ public class OrderService {
                 .discountAmount(BigDecimal.ZERO)
                 .orderStatus(OrderStatus.PENDING)
                 .paymentMethod(request.getPaymentMethod())
+                .bookingSessionId(request.getBookingSessionId())
                 .build();
 
-        ListTicketTypesInternalResponse response = inventoryFeignClient.getTicketTypes(request.getItems()).getData();
+        ListTicketTypesInternalResponse response = inventoryFeignClient.getTicketTypes(requestItems).getData();
         if (response == null) {
             throw new AppException(ErrorCode.INTERNAL_SERVER_ERROR, "Lấy ticket lỗi");
         }
@@ -95,13 +121,11 @@ public class OrderService {
                 OrderItem orderItem = OrderItem.builder()
                         .order(order)
                         .ticketTypeId(ticket.getTicketTypeId())
-                        .quantity(1L)
                         .unitPrice(ticket.getPrice())
                         .ticketTypeName(ticket.getTicketTypeName())
                         .ticketCode(ticketCode)
                         .build();
 
-                orderItem.calculateSubtotal();
                 order.addOrderItem(orderItem);
             }
         }
@@ -112,18 +136,9 @@ public class OrderService {
 
         voucherService.applyVouchers(order, request.getVoucherIds());
 
-        try {
-            String json = objectMapper.writeValueAsString(request.getItems());
-            redisTemplate.opsForValue().set(
-                    "order:reserve:" + orderCode,
-                    json,
-                    Duration.ofMinutes(10)
-            );
-        } catch (JsonProcessingException e) {
-            throw new AppException(ErrorCode.INTERNAL_SERVER_ERROR, "Lỗi khi chuyển đổi dữ liệu đơn hàng");
-        }
+        orderRepository.saveAndFlush(order);
 
-        return OrderResponse.fromEntity(orderRepository.save(order));
+        return paymentFeignClient.createPaymentLink(orderCode).getData();
     }
 
     @Transactional
@@ -137,7 +152,11 @@ public class OrderService {
         order.setOrderStatus(OrderStatus.CONFIRMED);
         orderRepository.save(order);
 
-        redisTemplate.delete("order:reserve:" + order.getOrderCode());
+        // Delete booking session to prevent auto-release after payment
+        if (order.getBookingSessionId() != null) {
+            redisTemplate.delete("booking:session:" + order.getBookingSessionId());
+            redisTemplate.delete("booking:data:" + order.getBookingSessionId());
+        }
 
         PaymentTransactionResponse payment = paymentFeignClient.getPaymentInfo(order.getOrderCode()).getData();
         EventDetailInternalResponse event = inventoryFeignClient.getEventDetailsByTicketTypeId(
@@ -208,8 +227,8 @@ public class OrderService {
                         .collect(Collectors.groupingBy(OrderItem::getTicketTypeId))
                         .values().stream()
                         .map(itemsList -> {
-                            OrderItem first = itemsList.get(0);
-                            long totalQuantity = itemsList.stream().mapToLong(OrderItem::getQuantity).sum();
+                            OrderItem first = itemsList.getFirst();
+                            long totalQuantity = itemsList.size();
                             return OrderConfirmEvent.TicketItemDto.builder()
                                     .ticketTypeName(first.getTicketTypeName())
                                     .quantity(totalQuantity)
@@ -237,14 +256,17 @@ public class OrderService {
                 .entrySet().stream()
                 .map(entry -> OrderItemRequest.builder()
                         .ticketTypeId(entry.getKey())
-                        .quantity(entry.getValue().stream().mapToInt(item -> Math.toIntExact(item.getQuantity())).sum())
+                        .quantity(entry.getValue().size())
                         .build()
                 )
                 .toList();
 
         inventoryFeignClient.releaseTickets(items);
 
-        redisTemplate.delete("order:reserve:" + orderCode);
+        if (order.getBookingSessionId() != null) {
+            redisTemplate.delete("booking:session:" + order.getBookingSessionId());
+            redisTemplate.delete("booking:data:" + order.getBookingSessionId());
+        }
     }
 
     @Transactional
@@ -257,7 +279,7 @@ public class OrderService {
                 .entrySet().stream()
                 .map(entry -> OrderItemRequest.builder()
                         .ticketTypeId(entry.getKey())
-                        .quantity(entry.getValue().stream().mapToInt(item -> Math.toIntExact(item.getQuantity())).sum())
+                        .quantity(entry.getValue().size())
                         .build()
                 )
                 .toList();
@@ -313,7 +335,7 @@ public class OrderService {
                 .entrySet().stream()
                 .map(entry -> OrderItemRequest.builder()
                         .ticketTypeId(entry.getKey())
-                        .quantity(entry.getValue().stream().mapToInt(item -> Math.toIntExact(item.getQuantity())).sum())
+                        .quantity(entry.getValue().size())
                         .build()
                 )
                 .toList();
@@ -329,7 +351,11 @@ public class OrderService {
         if (!releaseSuccess || !cancelSuccess) {
             throw new AppException(ErrorCode.INTERNAL_SERVER_ERROR, "Huỷ đơn thất bại ở inventory hoặc payment");
         }
-        redisTemplate.delete("order:reserve:" + orderCode);
+
+        if (order.getBookingSessionId() != null) {
+            redisTemplate.delete("booking:session:" + order.getBookingSessionId());
+            redisTemplate.delete("booking:data:" + order.getBookingSessionId());
+        }
 
         order.setOrderStatus(OrderStatus.CANCELLED);
         orderRepository.save(order);
@@ -344,7 +370,7 @@ public class OrderService {
 
     private BigDecimal calculateTotalAmount(List<OrderItem> items) {
         return items.stream()
-                .map(item -> item.getUnitPrice().multiply(BigDecimal.valueOf(item.getQuantity())))
+                .map(OrderItem::getUnitPrice)
                 .reduce(BigDecimal.ZERO, BigDecimal::add)
                 .setScale(2, RoundingMode.HALF_UP);
     }

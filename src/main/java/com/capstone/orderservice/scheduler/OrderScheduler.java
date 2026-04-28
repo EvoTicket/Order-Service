@@ -35,31 +35,16 @@ public class OrderScheduler {
         );
 
         for (Order order : expired) {
+            String sessionKey = "booking:session:" + order.getBookingSessionId();
+            Boolean sessionExists = redisTemplate.hasKey(sessionKey);
 
-            String key = "order:reserve:" + order.getOrderCode();
-
-            String json = (String) redisTemplate.opsForValue().get(key);
-
-            if (json != null) {
-
-                List<OrderItemRequest> items = order.getOrderItems()
-                        .stream()
-                        .map(item -> OrderItemRequest.builder()
-                                .ticketTypeId(item.getTicketTypeId())
-                                .quantity(Math.toIntExact(item.getQuantity()))
-                                .build()
-                        )
-                        .toList();
-
-                inventoryFeignClient.releaseTickets(items);
+            if (sessionExists != null && !sessionExists) {
+                // Session has expired or been deleted, mark order as expired
+                log.info("Booking session expired for order: {}, marking as EXPIRED", order.getOrderCode());
                 paymentFeignClient.cancelPayment(order.getOrderCode());
-
-                log.info("Released tickets for order: {}", order.getOrderCode());
-                redisTemplate.delete(key);
+                order.setOrderStatus(OrderStatus.EXPIRED);
+                orderRepository.save(order);
             }
-
-            order.setOrderStatus(OrderStatus.EXPIRED);
-            orderRepository.save(order);
         }
     }
 }

@@ -63,6 +63,9 @@ public class Order {
     @Column(name = "event_id")
     private Long eventId;
 
+    @Column(name = "booking_session_id")
+    private String bookingSessionId;
+
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;
 

@@ -27,12 +27,6 @@ public class OrderItem {
     @Column(name = "ticket_type_name")
     private String ticketTypeName;
 
-    @Column(name = "subtotal")
-    private BigDecimal subtotal;
-
-    @Column(name = "quantity")
-    private Long quantity;
-
     @Column(name = "unit_price")
     private BigDecimal unitPrice;
 
@@ -59,9 +53,5 @@ public class OrderItem {
         updatedAt = LocalDateTime.now();
     }
 
-    public void calculateSubtotal() {
-        if (unitPrice != null && quantity != null) {
-            this.subtotal = unitPrice.multiply(BigDecimal.valueOf(quantity));
-        }
-    }
+
 }
