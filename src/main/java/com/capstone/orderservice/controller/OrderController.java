@@ -4,6 +4,7 @@ import com.capstone.orderservice.dto.BasePageResponse;
 import com.capstone.orderservice.dto.BaseResponse;
 import com.capstone.orderservice.dto.request.CreateOrderRequest;
 import com.capstone.orderservice.dto.response.OrderResponse;
+import com.capstone.orderservice.dto.response.PaymentLinkResponse;
 import com.capstone.orderservice.enums.OrderStatus;
 import com.capstone.orderservice.service.OrderService;
 import jakarta.validation.Valid;
@@ -23,9 +24,9 @@ public class OrderController {
     private final OrderService orderService;
 
     @PostMapping
-    public ResponseEntity<BaseResponse<OrderResponse>> createOrder(
+    public ResponseEntity<BaseResponse<PaymentLinkResponse>> createOrder(
             @Valid @RequestBody CreateOrderRequest request) {
-        OrderResponse response = orderService.createOrder(request);
+        PaymentLinkResponse response = orderService.createOrder(request);
         return ResponseEntity
                 .status(HttpStatus.CREATED)
                 .body(BaseResponse.created("Tạo đơn hàng thành công", response));
