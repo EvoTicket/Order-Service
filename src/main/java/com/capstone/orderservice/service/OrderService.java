@@ -57,8 +57,17 @@ public class OrderService {
     private final ObjectMapper objectMapper;
     private final PaymentFeignClient paymentFeignClient;
 
-    @Transactional
+    @org.springframework.beans.factory.annotation.Autowired
+    @org.springframework.context.annotation.Lazy
+    private OrderService self;
+
     public PaymentLinkResponse createOrder(CreateOrderRequest request) {
+        Order order = self.createOrderInternal(request);
+        return paymentFeignClient.createPaymentLink(order.getOrderCode()).getData();
+    }
+
+    @Transactional
+    public Order createOrderInternal(CreateOrderRequest request) {
         String sessionDataKey = "booking:data:" + request.getBookingSessionId();
         String sessionJson = (String) redisTemplate.opsForValue().get(sessionDataKey);
         if (sessionJson == null) {
@@ -136,9 +145,7 @@ public class OrderService {
 
         voucherService.applyVouchers(order, request.getVoucherIds());
 
-        orderRepository.saveAndFlush(order);
-
-        return paymentFeignClient.createPaymentLink(orderCode).getData();
+        return orderRepository.saveAndFlush(order);
     }
 
     @Transactional
