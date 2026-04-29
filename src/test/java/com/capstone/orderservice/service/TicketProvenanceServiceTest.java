@@ -1,9 +1,11 @@
 package com.capstone.orderservice.service;
 
 import com.capstone.orderservice.dto.response.TicketProvenanceResponse;
+import com.capstone.orderservice.entity.ResaleListing;
 import com.capstone.orderservice.entity.TicketAsset;
 import com.capstone.orderservice.entity.TicketProvenance;
 import com.capstone.orderservice.enums.ProvenanceActionType;
+import com.capstone.orderservice.enums.ResaleListingStatus;
 import com.capstone.orderservice.enums.TicketAccessStatus;
 import com.capstone.orderservice.enums.TicketChainStatus;
 import com.capstone.orderservice.repository.TicketAssetRepository;
@@ -78,6 +80,43 @@ class TicketProvenanceServiceTest {
     }
 
     @Test
+    void recordResaleListedCreatesProvenanceWhenMissing() {
+        TicketAsset asset = ticketAsset();
+        ResaleListing listing = resaleListing(asset);
+        when(ticketProvenanceRepository.existsByTicketAssetIdAndActionTypeAndResaleListingCode(
+                1L,
+                ProvenanceActionType.RESALE_LISTED,
+                "RSL-TEST"
+        )).thenReturn(false);
+
+        ticketProvenanceService.recordResaleListed(asset, listing);
+
+        ArgumentCaptor<TicketProvenance> provenanceCaptor = ArgumentCaptor.forClass(TicketProvenance.class);
+        verify(ticketProvenanceRepository).save(provenanceCaptor.capture());
+        TicketProvenance provenance = provenanceCaptor.getValue();
+        assertThat(provenance.getTicketAssetId()).isEqualTo(1L);
+        assertThat(provenance.getFromUserId()).isEqualTo(10L);
+        assertThat(provenance.getActionType()).isEqualTo(ProvenanceActionType.RESALE_LISTED);
+        assertThat(provenance.getResaleListingCode()).isEqualTo("RSL-TEST");
+        assertThat(provenance.getPrice()).isEqualByComparingTo("105000.00");
+    }
+
+    @Test
+    void recordResaleCancelledSkipsDuplicate() {
+        TicketAsset asset = ticketAsset();
+        ResaleListing listing = resaleListing(asset);
+        when(ticketProvenanceRepository.existsByTicketAssetIdAndActionTypeAndResaleListingCode(
+                1L,
+                ProvenanceActionType.RESALE_CANCELLED,
+                "RSL-TEST"
+        )).thenReturn(true);
+
+        ticketProvenanceService.recordResaleCancelled(asset, listing);
+
+        verify(ticketProvenanceRepository, never()).save(any());
+    }
+
+    @Test
     void getProvenanceForMyTicketChecksCurrentOwnerAndReturnsAscendingRecords() {
         when(jwtUtil.getDataFromAuth()).thenReturn(new TokenMetaData(10L, false, null));
         when(ticketAssetRepository.findByIdAndCurrentOwnerId(1L, 10L)).thenReturn(Optional.of(ticketAsset()));
@@ -117,6 +156,22 @@ class TicketProvenanceServiceTest {
                 .currentOwnerId(10L)
                 .accessStatus(TicketAccessStatus.VALID)
                 .chainStatus(TicketChainStatus.WEB2_ONLY)
+                .build();
+    }
+
+    private ResaleListing resaleListing(TicketAsset asset) {
+        return ResaleListing.builder()
+                .id(77L)
+                .listingCode("RSL-TEST")
+                .ticketAsset(asset)
+                .sellerId(10L)
+                .originalPrice(new BigDecimal("100000.00"))
+                .listingPrice(new BigDecimal("105000.00"))
+                .priceCap(new BigDecimal("110000.00"))
+                .platformFeeAmount(new BigDecimal("2100.00"))
+                .organizerRoyaltyAmount(BigDecimal.ZERO)
+                .sellerPayoutAmount(new BigDecimal("102900.00"))
+                .status(ResaleListingStatus.ACTIVE)
                 .build();
     }
 }

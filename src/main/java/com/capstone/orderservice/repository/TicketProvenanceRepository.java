@@ -15,5 +15,11 @@ public interface TicketProvenanceRepository extends JpaRepository<TicketProvenan
             String orderCode
     );
 
+    boolean existsByTicketAssetIdAndActionTypeAndResaleListingCode(
+            Long ticketAssetId,
+            ProvenanceActionType actionType,
+            String resaleListingCode
+    );
+
     List<TicketProvenance> findByTicketAssetIdOrderByCreatedAtAsc(Long ticketAssetId);
 }

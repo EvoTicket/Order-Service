@@ -1,6 +1,7 @@
 package com.capstone.orderservice.service;
 
 import com.capstone.orderservice.dto.response.TicketProvenanceResponse;
+import com.capstone.orderservice.entity.ResaleListing;
 import com.capstone.orderservice.entity.TicketAsset;
 import com.capstone.orderservice.entity.TicketProvenance;
 import com.capstone.orderservice.enums.ProvenanceActionType;
@@ -19,6 +20,8 @@ import java.util.List;
 @RequiredArgsConstructor
 public class TicketProvenanceService {
     private static final String PRIMARY_ISSUED_DESCRIPTION = "Ticket issued after primary order confirmation";
+    private static final String RESALE_LISTED_DESCRIPTION = "Ticket listed for resale";
+    private static final String RESALE_CANCELLED_DESCRIPTION = "Resale listing cancelled";
 
     private final TicketProvenanceRepository ticketProvenanceRepository;
     private final TicketAssetRepository ticketAssetRepository;
@@ -60,6 +63,16 @@ public class TicketProvenanceService {
         ticketProvenanceRepository.save(provenance);
     }
 
+    @Transactional
+    public void recordResaleListed(TicketAsset asset, ResaleListing listing) {
+        recordResaleEvent(asset, listing, ProvenanceActionType.RESALE_LISTED, RESALE_LISTED_DESCRIPTION);
+    }
+
+    @Transactional
+    public void recordResaleCancelled(TicketAsset asset, ResaleListing listing) {
+        recordResaleEvent(asset, listing, ProvenanceActionType.RESALE_CANCELLED, RESALE_CANCELLED_DESCRIPTION);
+    }
+
     @Transactional(readOnly = true)
     public List<TicketProvenanceResponse> getProvenanceForMyTicket(Long ticketAssetId) {
         Long currentUserId = jwtUtil.getDataFromAuth().userId();
@@ -70,5 +83,41 @@ public class TicketProvenanceService {
                 .stream()
                 .map(TicketProvenanceResponse::fromEntity)
                 .toList();
+    }
+
+    private void recordResaleEvent(
+            TicketAsset asset,
+            ResaleListing listing,
+            ProvenanceActionType actionType,
+            String description
+    ) {
+        if (asset == null || asset.getId() == null || listing == null || listing.getListingCode() == null) {
+            return;
+        }
+
+        boolean alreadyRecorded = ticketProvenanceRepository.existsByTicketAssetIdAndActionTypeAndResaleListingCode(
+                asset.getId(),
+                actionType,
+                listing.getListingCode()
+        );
+        if (alreadyRecorded) {
+            return;
+        }
+
+        TicketProvenance provenance = TicketProvenance.builder()
+                .ticketAssetId(asset.getId())
+                .fromUserId(listing.getSellerId())
+                .toUserId(null)
+                .actionType(actionType)
+                .orderCode(null)
+                .resaleListingCode(listing.getListingCode())
+                .price(listing.getListingPrice())
+                .txHash(asset.getTxHash())
+                .tokenId(asset.getTokenId())
+                .chainStatus(asset.getChainStatus() != null ? asset.getChainStatus().name() : null)
+                .description(description)
+                .build();
+
+        ticketProvenanceRepository.save(provenance);
     }
 }
