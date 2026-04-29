@@ -36,6 +36,9 @@ class TicketAssetReadServiceTest {
     @Mock
     private JwtUtil jwtUtil;
 
+    @Mock
+    private TicketProvenanceService ticketProvenanceService;
+
     @InjectMocks
     private TicketAssetService ticketAssetService;
 

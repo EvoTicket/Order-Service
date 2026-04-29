@@ -35,6 +35,9 @@ class TicketAssetServiceTest {
     @Mock
     private JwtUtil jwtUtil;
 
+    @Mock
+    private TicketProvenanceService ticketProvenanceService;
+
     @InjectMocks
     private TicketAssetService ticketAssetService;
 
@@ -61,6 +64,7 @@ class TicketAssetServiceTest {
 
         ArgumentCaptor<TicketAsset> assetCaptor = ArgumentCaptor.forClass(TicketAsset.class);
         verify(ticketAssetRepository, times(2)).save(assetCaptor.capture());
+        verify(ticketProvenanceService, times(2)).recordPrimaryIssued(any());
         verify(inventoryFeignClient, times(1)).getEventDetailsByTicketTypeId(11L);
 
         TicketAsset firstAsset = assetCaptor.getAllValues().getFirst();
@@ -84,6 +88,7 @@ class TicketAssetServiceTest {
 
         ArgumentCaptor<TicketAsset> assetCaptor = ArgumentCaptor.forClass(TicketAsset.class);
         verify(ticketAssetRepository).save(assetCaptor.capture());
+        verify(ticketProvenanceService).recordPrimaryIssued(any());
 
         TicketAsset asset = assetCaptor.getValue();
         assertThat(asset.getEventId()).isEqualTo(order.getEventId());
@@ -105,6 +110,7 @@ class TicketAssetServiceTest {
         ticketAssetService.issueTicketsForConfirmedOrder(order);
 
         verify(ticketAssetRepository, never()).save(any());
+        verify(ticketProvenanceService, never()).recordPrimaryIssued(any());
         verifyNoInteractions(inventoryFeignClient);
     }
 

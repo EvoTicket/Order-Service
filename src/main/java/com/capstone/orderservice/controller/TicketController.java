@@ -4,7 +4,9 @@ import com.capstone.orderservice.dto.BaseResponse;
 import com.capstone.orderservice.dto.response.MyTicketsResponse;
 import com.capstone.orderservice.dto.response.ResaleEligibilityResponse;
 import com.capstone.orderservice.dto.response.TicketAssetResponse;
+import com.capstone.orderservice.dto.response.TicketProvenanceResponse;
 import com.capstone.orderservice.service.TicketAssetService;
+import com.capstone.orderservice.service.TicketProvenanceService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -17,6 +19,7 @@ import org.springframework.web.bind.annotation.RestController;
 @RequiredArgsConstructor
 public class TicketController {
     private final TicketAssetService ticketAssetService;
+    private final TicketProvenanceService ticketProvenanceService;
 
     @GetMapping("/me")
     public ResponseEntity<BaseResponse<MyTicketsResponse>> getMyTickets() {
@@ -35,5 +38,13 @@ public class TicketController {
     ) {
         return ResponseEntity.ok(BaseResponse.ok("Fetched resale eligibility successfully",
                 ticketAssetService.getResaleEligibility(ticketAssetId)));
+    }
+
+    @GetMapping("/{ticketAssetId}/provenance")
+    public ResponseEntity<BaseResponse<java.util.List<TicketProvenanceResponse>>> getTicketProvenance(
+            @PathVariable Long ticketAssetId
+    ) {
+        return ResponseEntity.ok(BaseResponse.ok("Fetched ticket provenance successfully",
+                ticketProvenanceService.getProvenanceForMyTicket(ticketAssetId)));
     }
 }

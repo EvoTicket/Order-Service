@@ -40,6 +40,7 @@ public class TicketAssetService {
     private final TicketAssetRepository ticketAssetRepository;
     private final InventoryFeignClient inventoryFeignClient;
     private final JwtUtil jwtUtil;
+    private final TicketProvenanceService ticketProvenanceService;
 
     @Transactional
     public void issueTicketsForConfirmedOrder(Order order) {
@@ -61,7 +62,8 @@ public class TicketAssetService {
             );
 
             TicketAsset asset = buildTicketAsset(order, item, eventMetadata.orElse(null));
-            ticketAssetRepository.save(asset);
+            TicketAsset savedAsset = ticketAssetRepository.save(asset);
+            ticketProvenanceService.recordPrimaryIssued(savedAsset);
         }
     }
 
