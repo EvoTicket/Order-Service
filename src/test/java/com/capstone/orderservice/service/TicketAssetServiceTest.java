@@ -9,6 +9,7 @@ import com.capstone.orderservice.entity.TicketAsset;
 import com.capstone.orderservice.enums.OrderStatus;
 import com.capstone.orderservice.enums.OrderType;
 import com.capstone.orderservice.repository.TicketAssetRepository;
+import com.capstone.orderservice.security.JwtUtil;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -30,6 +31,9 @@ class TicketAssetServiceTest {
 
     @Mock
     private InventoryFeignClient inventoryFeignClient;
+
+    @Mock
+    private JwtUtil jwtUtil;
 
     @InjectMocks
     private TicketAssetService ticketAssetService;
