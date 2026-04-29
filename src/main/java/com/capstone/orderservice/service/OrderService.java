@@ -58,6 +58,7 @@ public class OrderService {
     private final ObjectMapper objectMapper;
     private final PaymentFeignClient paymentFeignClient;
     private final TicketAssetService ticketAssetService;
+    private final ResaleService resaleService;
 
     @org.springframework.beans.factory.annotation.Autowired
     @org.springframework.context.annotation.Lazy
@@ -285,6 +286,12 @@ public class OrderService {
     @Transactional
     public void commitTicket(PaymentSuccessEvent paymentSuccessEvent){
         Order order = orderUtil.getOrderByOrderCode(paymentSuccessEvent.getOrderCode());
+        OrderType orderType = order.getOrderType() != null ? order.getOrderType() : OrderType.PRIMARY;
+
+        if (orderType == OrderType.RESALE) {
+            resaleService.finalizePaidResaleOrder(order, paymentSuccessEvent);
+            return;
+        }
 
         List<OrderItemRequest> orderItemInternalResponses = order.getOrderItems()
                 .stream()

@@ -3,6 +3,7 @@ package com.capstone.orderservice.service;
 import com.capstone.orderservice.dto.request.CreateResaleListingRequest;
 import com.capstone.orderservice.dto.request.ResaleCheckoutRequest;
 import com.capstone.orderservice.dto.request.ResaleQuoteRequest;
+import com.capstone.orderservice.dto.event.PaymentSuccessEvent;
 import com.capstone.orderservice.dto.response.ResaleCheckoutResponse;
 import com.capstone.orderservice.dto.response.ResaleListingResponse;
 import com.capstone.orderservice.dto.response.ResaleQuoteResponse;
@@ -27,9 +28,12 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.HexFormat;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.ThreadLocalRandom;
@@ -224,6 +228,54 @@ public class ResaleService {
                 .build();
     }
 
+    @Transactional
+    public void finalizePaidResaleOrder(Order order, PaymentSuccessEvent event) {
+        if (order.getOrderType() != OrderType.RESALE) {
+            throw new AppException(ErrorCode.BAD_REQUEST, "Order is not a resale order");
+        }
+
+        ResaleListing listing = resaleListingRepository.findByPaymentOrder_IdForUpdate(order.getId())
+                .orElseThrow(() -> new AppException(ErrorCode.RESOURCE_NOT_FOUND, "Resale listing not found"));
+        TicketAsset asset = ticketAssetRepository.findByIdForUpdate(listing.getTicketAsset().getId())
+                .orElseThrow(() -> new AppException(ErrorCode.RESOURCE_NOT_FOUND, "Ticket not found"));
+
+        Long buyerId = listing.getBuyerId();
+        Long sellerId = listing.getSellerId();
+
+        if (order.getOrderStatus() == OrderStatus.CONFIRMED && listing.getStatus() == ResaleListingStatus.SOLD) {
+            Long finalizedBuyerId = buyerId != null ? buyerId : order.getUserId();
+            if (finalizedBuyerId != null && !finalizedBuyerId.equals(asset.getCurrentOwnerId())) {
+                asset.setCurrentOwnerId(finalizedBuyerId);
+                ticketAssetRepository.save(asset);
+            }
+            return;
+        }
+
+        validatePaidResaleState(order, listing, asset, sellerId, buyerId);
+
+        Integer oldQrVersion = asset.getQrSecretVersion();
+        Integer newQrVersion = oldQrVersion == null ? 1 : oldQrVersion + 1;
+
+        asset.setCurrentOwnerId(buyerId);
+        asset.setAccessStatus(TicketAccessStatus.VALID);
+        asset.setCurrentResaleListingId(null);
+        asset.setQrSecretVersion(newQrVersion);
+        asset.setQrSecretHash(generateQrSecretHash(asset, listing, order, event, newQrVersion));
+
+        listing.setStatus(ResaleListingStatus.SOLD);
+        listing.setSoldAt(LocalDateTime.now());
+
+        order.setOrderStatus(OrderStatus.CONFIRMED);
+
+        ticketAssetRepository.save(asset);
+        resaleListingRepository.save(listing);
+        orderRepository.save(order);
+
+        ticketProvenanceService.recordResalePurchased(asset, listing, order);
+        ticketProvenanceService.recordOwnershipTransferred(asset, listing, order, sellerId, buyerId);
+        ticketProvenanceService.recordQrRotated(asset, listing, order, sellerId, buyerId, oldQrVersion, newQrVersion);
+    }
+
     private ResaleQuoteResponse toQuoteResponse(
             TicketAsset asset,
             ResalePricingService.ResalePricing pricing,
@@ -296,6 +348,42 @@ public class ResaleService {
         }
     }
 
+    private void validatePaidResaleState(
+            Order order,
+            ResaleListing listing,
+            TicketAsset asset,
+            Long sellerId,
+            Long buyerId
+    ) {
+        if (order.getOrderStatus() != OrderStatus.PENDING) {
+            throw new AppException(ErrorCode.BAD_REQUEST, "Resale order is not pending");
+        }
+
+        if (listing.getStatus() != ResaleListingStatus.PAYMENT_PENDING) {
+            throw new AppException(ErrorCode.BAD_REQUEST, "Resale listing is not awaiting payment");
+        }
+
+        if (listing.getPaymentOrder() == null || !order.getId().equals(listing.getPaymentOrder().getId())) {
+            throw new AppException(ErrorCode.BAD_REQUEST, "Resale listing payment order does not match");
+        }
+
+        if (buyerId == null || !buyerId.equals(order.getUserId())) {
+            throw new AppException(ErrorCode.BAD_REQUEST, "Resale listing buyer does not match order buyer");
+        }
+
+        if (!sellerId.equals(asset.getCurrentOwnerId())) {
+            throw new AppException(ErrorCode.BAD_REQUEST, "Ticket owner no longer matches listing seller");
+        }
+
+        if (asset.getAccessStatus() != TicketAccessStatus.LOCKED_RESALE) {
+            throw new AppException(ErrorCode.BAD_REQUEST, "Ticket is not locked for resale");
+        }
+
+        if (asset.getCurrentResaleListingId() != null && !listing.getId().equals(asset.getCurrentResaleListingId())) {
+            throw new AppException(ErrorCode.BAD_REQUEST, "Ticket is not linked to this resale listing");
+        }
+    }
+
     private Order buildResaleOrder(
             ResaleCheckoutRequest request,
             Long buyerId,
@@ -345,6 +433,28 @@ public class ResaleService {
             }
         }
         throw new AppException(ErrorCode.CONFLICT, "Could not generate unique resale order code");
+    }
+
+    private String generateQrSecretHash(
+            TicketAsset asset,
+            ResaleListing listing,
+            Order order,
+            PaymentSuccessEvent event,
+            Integer newQrVersion
+    ) {
+        try {
+            String material = asset.getId()
+                    + ":" + listing.getListingCode()
+                    + ":" + order.getOrderCode()
+                    + ":" + event.getTransactionId()
+                    + ":" + newQrVersion
+                    + ":" + UUID.randomUUID();
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            byte[] hash = digest.digest(material.getBytes(StandardCharsets.UTF_8));
+            return HexFormat.of().formatHex(hash);
+        } catch (Exception e) {
+            throw new AppException(ErrorCode.INTERNAL_SERVER_ERROR, "Failed to rotate QR secret hash", e);
+        }
     }
 
     private record ResaleDecision(boolean valid, String reasonCode, String reasonMessage) {

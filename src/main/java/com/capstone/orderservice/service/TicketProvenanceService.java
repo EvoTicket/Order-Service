@@ -1,6 +1,7 @@
 package com.capstone.orderservice.service;
 
 import com.capstone.orderservice.dto.response.TicketProvenanceResponse;
+import com.capstone.orderservice.entity.Order;
 import com.capstone.orderservice.entity.ResaleListing;
 import com.capstone.orderservice.entity.TicketAsset;
 import com.capstone.orderservice.entity.TicketProvenance;
@@ -22,6 +23,8 @@ public class TicketProvenanceService {
     private static final String PRIMARY_ISSUED_DESCRIPTION = "Ticket issued after primary order confirmation";
     private static final String RESALE_LISTED_DESCRIPTION = "Ticket listed for resale";
     private static final String RESALE_CANCELLED_DESCRIPTION = "Resale listing cancelled";
+    private static final String RESALE_PURCHASED_DESCRIPTION = "Resale purchase completed";
+    private static final String OWNERSHIP_TRANSFERRED_DESCRIPTION = "Ticket ownership transferred after resale payment";
 
     private final TicketProvenanceRepository ticketProvenanceRepository;
     private final TicketAssetRepository ticketAssetRepository;
@@ -73,6 +76,61 @@ public class TicketProvenanceService {
         recordResaleEvent(asset, listing, ProvenanceActionType.RESALE_CANCELLED, RESALE_CANCELLED_DESCRIPTION);
     }
 
+    @Transactional
+    public void recordResalePurchased(TicketAsset asset, ResaleListing listing, Order order) {
+        recordPaidResaleEvent(
+                asset,
+                listing,
+                order,
+                listing != null ? listing.getSellerId() : null,
+                listing != null ? listing.getBuyerId() : null,
+                ProvenanceActionType.RESALE_PURCHASED,
+                RESALE_PURCHASED_DESCRIPTION
+        );
+    }
+
+    @Transactional
+    public void recordOwnershipTransferred(
+            TicketAsset asset,
+            ResaleListing listing,
+            Order order,
+            Long sellerId,
+            Long buyerId
+    ) {
+        recordPaidResaleEvent(
+                asset,
+                listing,
+                order,
+                sellerId,
+                buyerId,
+                ProvenanceActionType.OWNERSHIP_TRANSFERRED,
+                OWNERSHIP_TRANSFERRED_DESCRIPTION
+        );
+    }
+
+    @Transactional
+    public void recordQrRotated(
+            TicketAsset asset,
+            ResaleListing listing,
+            Order order,
+            Long sellerId,
+            Long buyerId,
+            Integer oldVersion,
+            Integer newVersion
+    ) {
+        String description = "Ticket QR rotated after resale payment from version "
+                + oldVersion + " to " + newVersion;
+        recordPaidResaleEvent(
+                asset,
+                listing,
+                order,
+                sellerId,
+                buyerId,
+                ProvenanceActionType.QR_ROTATED,
+                description
+        );
+    }
+
     @Transactional(readOnly = true)
     public List<TicketProvenanceResponse> getProvenanceForMyTicket(Long ticketAssetId) {
         Long currentUserId = jwtUtil.getDataFromAuth().userId();
@@ -110,6 +168,52 @@ public class TicketProvenanceService {
                 .toUserId(null)
                 .actionType(actionType)
                 .orderCode(null)
+                .resaleListingCode(listing.getListingCode())
+                .price(listing.getListingPrice())
+                .txHash(asset.getTxHash())
+                .tokenId(asset.getTokenId())
+                .chainStatus(asset.getChainStatus() != null ? asset.getChainStatus().name() : null)
+                .description(description)
+                .build();
+
+        ticketProvenanceRepository.save(provenance);
+    }
+
+    private void recordPaidResaleEvent(
+            TicketAsset asset,
+            ResaleListing listing,
+            Order order,
+            Long sellerId,
+            Long buyerId,
+            ProvenanceActionType actionType,
+            String description
+    ) {
+        if (asset == null
+                || asset.getId() == null
+                || listing == null
+                || listing.getListingCode() == null
+                || order == null
+                || order.getOrderCode() == null) {
+            return;
+        }
+
+        boolean alreadyRecorded = ticketProvenanceRepository
+                .existsByTicketAssetIdAndActionTypeAndOrderCodeAndResaleListingCode(
+                        asset.getId(),
+                        actionType,
+                        order.getOrderCode(),
+                        listing.getListingCode()
+                );
+        if (alreadyRecorded) {
+            return;
+        }
+
+        TicketProvenance provenance = TicketProvenance.builder()
+                .ticketAssetId(asset.getId())
+                .fromUserId(sellerId)
+                .toUserId(buyerId)
+                .actionType(actionType)
+                .orderCode(order.getOrderCode())
                 .resaleListingCode(listing.getListingCode())
                 .price(listing.getListingPrice())
                 .txHash(asset.getTxHash())

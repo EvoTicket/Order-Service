@@ -3,6 +3,7 @@ package com.capstone.orderservice.service;
 import com.capstone.orderservice.dto.request.CreateResaleListingRequest;
 import com.capstone.orderservice.dto.request.ResaleCheckoutRequest;
 import com.capstone.orderservice.dto.request.ResaleQuoteRequest;
+import com.capstone.orderservice.dto.event.PaymentSuccessEvent;
 import com.capstone.orderservice.dto.response.ResaleCheckoutResponse;
 import com.capstone.orderservice.dto.response.ResaleListingResponse;
 import com.capstone.orderservice.dto.response.ResaleQuoteResponse;
@@ -228,6 +229,55 @@ class ResaleServiceTest {
         assertThat(savedOrder.getOrderItems().getFirst().getUnitPrice()).isEqualByComparingTo("105000.00");
     }
 
+    @Test
+    void finalizePaidResaleOrderTransfersOwnershipAndMarksSold() {
+        Order order = resaleOrder();
+        TicketAsset asset = validAsset();
+        asset.setAccessStatus(TicketAccessStatus.LOCKED_RESALE);
+        asset.setCurrentResaleListingId(77L);
+        asset.setQrSecretVersion(1);
+        asset.setQrSecretHash("old-hash");
+
+        ResaleListing listing = paymentPendingListing(asset, order);
+        when(resaleListingRepository.findByPaymentOrder_IdForUpdate(500L)).thenReturn(Optional.of(listing));
+        when(ticketAssetRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(asset));
+
+        resaleService.finalizePaidResaleOrder(order, paymentSuccessEvent());
+
+        assertThat(order.getOrderStatus()).isEqualTo(OrderStatus.CONFIRMED);
+        assertThat(listing.getStatus()).isEqualTo(ResaleListingStatus.SOLD);
+        assertThat(listing.getSoldAt()).isNotNull();
+        assertThat(asset.getCurrentOwnerId()).isEqualTo(20L);
+        assertThat(asset.getAccessStatus()).isEqualTo(TicketAccessStatus.VALID);
+        assertThat(asset.getCurrentResaleListingId()).isNull();
+        assertThat(asset.getQrSecretVersion()).isEqualTo(2);
+        assertThat(asset.getQrSecretHash()).isNotEqualTo("old-hash");
+        verify(ticketProvenanceService).recordResalePurchased(asset, listing, order);
+        verify(ticketProvenanceService).recordOwnershipTransferred(asset, listing, order, 10L, 20L);
+        verify(ticketProvenanceService).recordQrRotated(asset, listing, order, 10L, 20L, 1, 2);
+    }
+
+    @Test
+    void finalizePaidResaleOrderAlreadyFinalizedReturnsSafely() {
+        Order order = resaleOrder();
+        order.setOrderStatus(OrderStatus.CONFIRMED);
+        TicketAsset asset = validAsset();
+        asset.setCurrentOwnerId(20L);
+        asset.setAccessStatus(TicketAccessStatus.VALID);
+        asset.setCurrentResaleListingId(null);
+
+        ResaleListing listing = paymentPendingListing(asset, order);
+        listing.setStatus(ResaleListingStatus.SOLD);
+        when(resaleListingRepository.findByPaymentOrder_IdForUpdate(500L)).thenReturn(Optional.of(listing));
+        when(ticketAssetRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(asset));
+
+        resaleService.finalizePaidResaleOrder(order, paymentSuccessEvent());
+
+        verifyNoInteractions(ticketProvenanceService);
+        verify(resaleListingRepository, never()).save(any());
+        verify(orderRepository, never()).save(any());
+    }
+
     private TicketAsset validAsset() {
         return TicketAsset.builder()
                 .id(1L)
@@ -260,6 +310,43 @@ class ResaleServiceTest {
                 .organizerRoyaltyAmount(BigDecimal.ZERO)
                 .sellerPayoutAmount(new BigDecimal("102900.00"))
                 .status(ResaleListingStatus.ACTIVE)
+                .build();
+    }
+
+    private ResaleListing paymentPendingListing(TicketAsset asset, Order order) {
+        return ResaleListing.builder()
+                .id(77L)
+                .listingCode("RSL-TEST")
+                .ticketAsset(asset)
+                .sellerId(10L)
+                .buyerId(20L)
+                .paymentOrder(order)
+                .originalPrice(new BigDecimal("100000.00"))
+                .listingPrice(new BigDecimal("105000.00"))
+                .priceCap(new BigDecimal("110000.00"))
+                .platformFeeAmount(new BigDecimal("2100.00"))
+                .organizerRoyaltyAmount(BigDecimal.ZERO)
+                .sellerPayoutAmount(new BigDecimal("102900.00"))
+                .status(ResaleListingStatus.PAYMENT_PENDING)
+                .build();
+    }
+
+    private Order resaleOrder() {
+        return Order.builder()
+                .id(500L)
+                .orderCode("300426123456")
+                .userId(20L)
+                .orderType(OrderType.RESALE)
+                .orderStatus(OrderStatus.PENDING)
+                .paymentMethod(PaymentMethod.PAYOS)
+                .build();
+    }
+
+    private PaymentSuccessEvent paymentSuccessEvent() {
+        return PaymentSuccessEvent.builder()
+                .orderCode("300426123456")
+                .transactionId("TX-1")
+                .transactionDateTime("2026-04-30T10:00:00")
                 .build();
     }
 }
