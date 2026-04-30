@@ -1,0 +1,251 @@
+package com.capstone.orderservice.service;
+
+import com.capstone.orderservice.dto.response.TicketProvenanceResponse;
+import com.capstone.orderservice.entity.Order;
+import com.capstone.orderservice.entity.ResaleListing;
+import com.capstone.orderservice.entity.TicketAsset;
+import com.capstone.orderservice.entity.TicketProvenance;
+import com.capstone.orderservice.enums.ProvenanceActionType;
+import com.capstone.orderservice.enums.OrderStatus;
+import com.capstone.orderservice.enums.OrderType;
+import com.capstone.orderservice.enums.ResaleListingStatus;
+import com.capstone.orderservice.enums.TicketAccessStatus;
+import com.capstone.orderservice.enums.TicketChainStatus;
+import com.capstone.orderservice.repository.TicketAssetRepository;
+import com.capstone.orderservice.repository.TicketProvenanceRepository;
+import com.capstone.orderservice.security.JwtUtil;
+import com.capstone.orderservice.security.TokenMetaData;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
+import org.mockito.InjectMocks;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
+
+import java.math.BigDecimal;
+import java.time.LocalDateTime;
+import java.util.List;
+import java.util.Optional;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.*;
+
+@ExtendWith(MockitoExtension.class)
+class TicketProvenanceServiceTest {
+    @Mock
+    private TicketProvenanceRepository ticketProvenanceRepository;
+
+    @Mock
+    private TicketAssetRepository ticketAssetRepository;
+
+    @Mock
+    private JwtUtil jwtUtil;
+
+    @InjectMocks
+    private TicketProvenanceService ticketProvenanceService;
+
+    @Test
+    void recordPrimaryIssuedCreatesProvenanceWhenMissing() {
+        TicketAsset asset = ticketAsset();
+        when(ticketProvenanceRepository.existsByTicketAssetIdAndActionTypeAndOrderCode(
+                1L,
+                ProvenanceActionType.PRIMARY_ISSUED,
+                "300426123456"
+        )).thenReturn(false);
+
+        ticketProvenanceService.recordPrimaryIssued(asset);
+
+        ArgumentCaptor<TicketProvenance> provenanceCaptor = ArgumentCaptor.forClass(TicketProvenance.class);
+        verify(ticketProvenanceRepository).save(provenanceCaptor.capture());
+
+        TicketProvenance provenance = provenanceCaptor.getValue();
+        assertThat(provenance.getTicketAssetId()).isEqualTo(1L);
+        assertThat(provenance.getFromUserId()).isNull();
+        assertThat(provenance.getToUserId()).isEqualTo(10L);
+        assertThat(provenance.getActionType()).isEqualTo(ProvenanceActionType.PRIMARY_ISSUED);
+        assertThat(provenance.getOrderCode()).isEqualTo("300426123456");
+        assertThat(provenance.getPrice()).isEqualByComparingTo("100000.00");
+        assertThat(provenance.getChainStatus()).isEqualTo("WEB2_ONLY");
+    }
+
+    @Test
+    void recordPrimaryIssuedSkipsDuplicate() {
+        TicketAsset asset = ticketAsset();
+        when(ticketProvenanceRepository.existsByTicketAssetIdAndActionTypeAndOrderCode(
+                1L,
+                ProvenanceActionType.PRIMARY_ISSUED,
+                "300426123456"
+        )).thenReturn(true);
+
+        ticketProvenanceService.recordPrimaryIssued(asset);
+
+        verify(ticketProvenanceRepository, never()).save(any());
+    }
+
+    @Test
+    void recordResaleListedCreatesProvenanceWhenMissing() {
+        TicketAsset asset = ticketAsset();
+        ResaleListing listing = resaleListing(asset);
+        when(ticketProvenanceRepository.existsByTicketAssetIdAndActionTypeAndResaleListingCode(
+                1L,
+                ProvenanceActionType.RESALE_LISTED,
+                "RSL-TEST"
+        )).thenReturn(false);
+
+        ticketProvenanceService.recordResaleListed(asset, listing);
+
+        ArgumentCaptor<TicketProvenance> provenanceCaptor = ArgumentCaptor.forClass(TicketProvenance.class);
+        verify(ticketProvenanceRepository).save(provenanceCaptor.capture());
+        TicketProvenance provenance = provenanceCaptor.getValue();
+        assertThat(provenance.getTicketAssetId()).isEqualTo(1L);
+        assertThat(provenance.getFromUserId()).isEqualTo(10L);
+        assertThat(provenance.getActionType()).isEqualTo(ProvenanceActionType.RESALE_LISTED);
+        assertThat(provenance.getResaleListingCode()).isEqualTo("RSL-TEST");
+        assertThat(provenance.getPrice()).isEqualByComparingTo("105000.00");
+    }
+
+    @Test
+    void recordResaleCancelledSkipsDuplicate() {
+        TicketAsset asset = ticketAsset();
+        ResaleListing listing = resaleListing(asset);
+        when(ticketProvenanceRepository.existsByTicketAssetIdAndActionTypeAndResaleListingCode(
+                1L,
+                ProvenanceActionType.RESALE_CANCELLED,
+                "RSL-TEST"
+        )).thenReturn(true);
+
+        ticketProvenanceService.recordResaleCancelled(asset, listing);
+
+        verify(ticketProvenanceRepository, never()).save(any());
+    }
+
+    @Test
+    void recordResalePurchasedUsesOrderAndListingForIdempotency() {
+        TicketAsset asset = ticketAsset();
+        ResaleListing listing = resaleListing(asset);
+        Order order = resaleOrder();
+        when(ticketProvenanceRepository.existsByTicketAssetIdAndActionTypeAndOrderCodeAndResaleListingCode(
+                1L,
+                ProvenanceActionType.RESALE_PURCHASED,
+                "300426999999",
+                "RSL-TEST"
+        )).thenReturn(false);
+
+        ticketProvenanceService.recordResalePurchased(asset, listing, order);
+
+        ArgumentCaptor<TicketProvenance> provenanceCaptor = ArgumentCaptor.forClass(TicketProvenance.class);
+        verify(ticketProvenanceRepository).save(provenanceCaptor.capture());
+        TicketProvenance provenance = provenanceCaptor.getValue();
+        assertThat(provenance.getFromUserId()).isEqualTo(10L);
+        assertThat(provenance.getToUserId()).isEqualTo(20L);
+        assertThat(provenance.getActionType()).isEqualTo(ProvenanceActionType.RESALE_PURCHASED);
+        assertThat(provenance.getOrderCode()).isEqualTo("300426999999");
+        assertThat(provenance.getResaleListingCode()).isEqualTo("RSL-TEST");
+    }
+
+    @Test
+    void recordOwnershipTransferredSkipsDuplicate() {
+        TicketAsset asset = ticketAsset();
+        ResaleListing listing = resaleListing(asset);
+        Order order = resaleOrder();
+        when(ticketProvenanceRepository.existsByTicketAssetIdAndActionTypeAndOrderCodeAndResaleListingCode(
+                1L,
+                ProvenanceActionType.OWNERSHIP_TRANSFERRED,
+                "300426999999",
+                "RSL-TEST"
+        )).thenReturn(true);
+
+        ticketProvenanceService.recordOwnershipTransferred(asset, listing, order, 10L, 20L);
+
+        verify(ticketProvenanceRepository, never()).save(any());
+    }
+
+    @Test
+    void recordQrRotatedIncludesVersionDescription() {
+        TicketAsset asset = ticketAsset();
+        ResaleListing listing = resaleListing(asset);
+        Order order = resaleOrder();
+        when(ticketProvenanceRepository.existsByTicketAssetIdAndActionTypeAndOrderCodeAndResaleListingCode(
+                1L,
+                ProvenanceActionType.QR_ROTATED,
+                "300426999999",
+                "RSL-TEST"
+        )).thenReturn(false);
+
+        ticketProvenanceService.recordQrRotated(asset, listing, order, 10L, 20L, 1, 2);
+
+        ArgumentCaptor<TicketProvenance> provenanceCaptor = ArgumentCaptor.forClass(TicketProvenance.class);
+        verify(ticketProvenanceRepository).save(provenanceCaptor.capture());
+        assertThat(provenanceCaptor.getValue().getDescription()).contains("version 1 to 2");
+    }
+
+    @Test
+    void getProvenanceForMyTicketChecksCurrentOwnerAndReturnsAscendingRecords() {
+        when(jwtUtil.getDataFromAuth()).thenReturn(new TokenMetaData(10L, false, null));
+        when(ticketAssetRepository.findByIdAndCurrentOwnerId(1L, 10L)).thenReturn(Optional.of(ticketAsset()));
+
+        TicketProvenance provenance = TicketProvenance.builder()
+                .id(11L)
+                .ticketAssetId(1L)
+                .toUserId(10L)
+                .actionType(ProvenanceActionType.PRIMARY_ISSUED)
+                .orderCode("300426123456")
+                .price(new BigDecimal("100000.00"))
+                .chainStatus("WEB2_ONLY")
+                .description("Ticket issued after primary order confirmation")
+                .createdAt(LocalDateTime.now())
+                .build();
+        when(ticketProvenanceRepository.findByTicketAssetIdOrderByCreatedAtAsc(1L))
+                .thenReturn(List.of(provenance));
+
+        List<TicketProvenanceResponse> response = ticketProvenanceService.getProvenanceForMyTicket(1L);
+
+        assertThat(response).hasSize(1);
+        assertThat(response.getFirst().getId()).isEqualTo(11L);
+        assertThat(response.getFirst().getActionType()).isEqualTo(ProvenanceActionType.PRIMARY_ISSUED);
+        verify(ticketAssetRepository).findByIdAndCurrentOwnerId(1L, 10L);
+    }
+
+    private TicketAsset ticketAsset() {
+        return TicketAsset.builder()
+                .id(1L)
+                .assetCode("ASSET-1")
+                .originalOrderId(100L)
+                .originalOrderCode("300426123456")
+                .eventId(200L)
+                .ticketTypeId(300L)
+                .originalPrice(new BigDecimal("100000.00"))
+                .originalBuyerId(10L)
+                .currentOwnerId(10L)
+                .accessStatus(TicketAccessStatus.VALID)
+                .chainStatus(TicketChainStatus.WEB2_ONLY)
+                .build();
+    }
+
+    private ResaleListing resaleListing(TicketAsset asset) {
+        return ResaleListing.builder()
+                .id(77L)
+                .listingCode("RSL-TEST")
+                .ticketAsset(asset)
+                .sellerId(10L)
+                .buyerId(20L)
+                .originalPrice(new BigDecimal("100000.00"))
+                .listingPrice(new BigDecimal("105000.00"))
+                .priceCap(new BigDecimal("110000.00"))
+                .platformFeeAmount(new BigDecimal("2100.00"))
+                .organizerRoyaltyAmount(BigDecimal.ZERO)
+                .sellerPayoutAmount(new BigDecimal("102900.00"))
+                .status(ResaleListingStatus.ACTIVE)
+                .build();
+    }
+
+    private Order resaleOrder() {
+        return Order.builder()
+                .id(500L)
+                .orderCode("300426999999")
+                .userId(20L)
+                .orderType(OrderType.RESALE)
+                .orderStatus(OrderStatus.CONFIRMED)
+                .build();
+    }
+}

@@ -14,6 +14,7 @@ public enum ErrorCode {
     VALIDATION_FAILED("VALIDATION_FAILED", "Dữ liệu đầu vào không hợp lệ", HttpStatus.BAD_REQUEST),
     WAITING_FOR_OTP("WAITING_FOR_OTP", "Bạn cần chờ trước khi gửi lại OTP", HttpStatus.BAD_REQUEST),
     INTERNAL_SERVER_ERROR("INTERNAL_SERVER_ERROR", "Internal server error", HttpStatus.INTERNAL_SERVER_ERROR),
+    PAYMENT_GATEWAY_ERROR("PAYMENT_GATEWAY_ERROR", "Unable to initialize payment gateway", HttpStatus.BAD_GATEWAY),
     IO_EXCEPTION("IO EXCEPTION", "Lỗi khi xử lý tệp hoặc dòng dữ liệu.", HttpStatus.INTERNAL_SERVER_ERROR),
     MAX_UPLOAD_SIZE_EXCEEDED( "MAX_UPLOAD_SIZE_EXCEEDED", "Kích thước tệp vượt quá giới hạn cho phép.", HttpStatus.PAYLOAD_TOO_LARGE),
     METHOD_NOT_ALLOWED( "METHOD_NOT_ALLOWED", "Phương thức HTTP không được hỗ trợ.", HttpStatus.METHOD_NOT_ALLOWED),

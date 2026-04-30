@@ -13,6 +13,7 @@ import com.capstone.orderservice.dto.response.PaymentLinkResponse;
 import com.capstone.orderservice.entity.Order;
 import com.capstone.orderservice.entity.OrderItem;
 import com.capstone.orderservice.enums.OrderStatus;
+import com.capstone.orderservice.enums.OrderType;
 import com.capstone.orderservice.exception.AppException;
 import com.capstone.orderservice.exception.ErrorCode;
 import com.capstone.orderservice.producer.RedisStreamProducer;
@@ -56,6 +57,8 @@ public class OrderService {
     private final RedisStreamProducer redisStreamProducer;
     private final ObjectMapper objectMapper;
     private final PaymentFeignClient paymentFeignClient;
+    private final TicketAssetService ticketAssetService;
+    private final ResaleService resaleService;
 
     @org.springframework.beans.factory.annotation.Autowired
     @org.springframework.context.annotation.Lazy
@@ -109,6 +112,7 @@ public class OrderService {
                 .orderCode(orderCode)
                 .discountAmount(BigDecimal.ZERO)
                 .orderStatus(OrderStatus.PENDING)
+                .orderType(OrderType.PRIMARY)
                 .paymentMethod(request.getPaymentMethod())
                 .bookingSessionId(request.getBookingSessionId())
                 .build();
@@ -153,11 +157,14 @@ public class OrderService {
         Order order = orderRepository.findByOrderCode(orderCode)
                 .orElseThrow(() -> new AppException(ErrorCode.RESOURCE_NOT_FOUND, "Order not found"));
         if (order.getOrderStatus() == OrderStatus.CONFIRMED) {
-            log.info("Order has been marked for confirmation");
+            ticketAssetService.issueTicketsForConfirmedOrder(order);
+            log.info("Order {} is already confirmed; ensured ticket assets are issued", orderCode);
             return;
         }
         order.setOrderStatus(OrderStatus.CONFIRMED);
         orderRepository.save(order);
+
+        ticketAssetService.issueTicketsForConfirmedOrder(order);
 
         // Delete booking session to prevent auto-release after payment
         if (order.getBookingSessionId() != null) {
@@ -252,6 +259,12 @@ public class OrderService {
     public void markFailed(String orderCode) {
         Order order = orderRepository.findByOrderCode(orderCode)
                 .orElseThrow(() -> new AppException(ErrorCode.RESOURCE_NOT_FOUND, "Order not found"));
+        OrderType orderType = order.getOrderType() != null ? order.getOrderType() : OrderType.PRIMARY;
+
+        if (orderType == OrderType.RESALE) {
+            resaleService.markResalePaymentFailed(order);
+            return;
+        }
 
         if (order.getOrderStatus() != OrderStatus.PENDING) return;
 
@@ -279,6 +292,12 @@ public class OrderService {
     @Transactional
     public void commitTicket(PaymentSuccessEvent paymentSuccessEvent){
         Order order = orderUtil.getOrderByOrderCode(paymentSuccessEvent.getOrderCode());
+        OrderType orderType = order.getOrderType() != null ? order.getOrderType() : OrderType.PRIMARY;
+
+        if (orderType == OrderType.RESALE) {
+            resaleService.finalizePaidResaleOrder(order, paymentSuccessEvent);
+            return;
+        }
 
         List<OrderItemRequest> orderItemInternalResponses = order.getOrderItems()
                 .stream()
@@ -328,6 +347,12 @@ public class OrderService {
     @Transactional
     public void cancelOrder(String orderCode) {
         Order order = orderUtil.getOrderByOrderCode(orderCode);
+        OrderType orderType = order.getOrderType() != null ? order.getOrderType() : OrderType.PRIMARY;
+
+        if (orderType == OrderType.RESALE) {
+            resaleService.cancelPendingResaleOrder(order);
+            return;
+        }
 
         if (!order.getOrderStatus().canBeCancelled()) {
             throw new AppException(
