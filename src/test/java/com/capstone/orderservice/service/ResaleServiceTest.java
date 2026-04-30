@@ -1,5 +1,7 @@
 package com.capstone.orderservice.service;
 
+import com.capstone.orderservice.client.PaymentFeignClient;
+import com.capstone.orderservice.dto.BaseResponse;
 import com.capstone.orderservice.dto.request.CreateResaleListingRequest;
 import com.capstone.orderservice.dto.request.ResaleCheckoutRequest;
 import com.capstone.orderservice.dto.request.ResaleQuoteRequest;
@@ -60,6 +62,9 @@ class ResaleServiceTest {
 
     @Mock
     private JwtUtil jwtUtil;
+
+    @Mock
+    private PaymentFeignClient paymentFeignClient;
 
     @InjectMocks
     private ResaleService resaleService;
@@ -276,6 +281,91 @@ class ResaleServiceTest {
         verifyNoInteractions(ticketProvenanceService);
         verify(resaleListingRepository, never()).save(any());
         verify(orderRepository, never()).save(any());
+    }
+
+    @Test
+    void expirePendingResaleOrderRestoresListingActiveAndKeepsTicketLocked() {
+        Order order = resaleOrder();
+        TicketAsset asset = validAsset();
+        asset.setAccessStatus(TicketAccessStatus.LOCKED_RESALE);
+        asset.setCurrentResaleListingId(77L);
+        ResaleListing listing = paymentPendingListing(asset, order);
+
+        when(resaleListingRepository.findByPaymentOrder_IdForUpdate(500L)).thenReturn(Optional.of(listing));
+        when(ticketAssetRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(asset));
+        when(paymentFeignClient.cancelPayment("300426123456")).thenReturn(BaseResponse.ok(true));
+        when(resaleListingRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+        when(orderRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+
+        resaleService.expirePendingResaleOrder(order);
+
+        assertThat(order.getOrderStatus()).isEqualTo(OrderStatus.EXPIRED);
+        assertThat(listing.getStatus()).isEqualTo(ResaleListingStatus.ACTIVE);
+        assertThat(listing.getBuyerId()).isNull();
+        assertThat(listing.getPaymentOrder()).isNull();
+        assertThat(asset.getCurrentOwnerId()).isEqualTo(10L);
+        assertThat(asset.getAccessStatus()).isEqualTo(TicketAccessStatus.LOCKED_RESALE);
+        assertThat(asset.getCurrentResaleListingId()).isEqualTo(77L);
+        verify(paymentFeignClient).cancelPayment("300426123456");
+    }
+
+    @Test
+    void markResalePaymentFailedRestoresListingActiveWithoutPaymentCancel() {
+        Order order = resaleOrder();
+        TicketAsset asset = validAsset();
+        asset.setAccessStatus(TicketAccessStatus.LOCKED_RESALE);
+        asset.setCurrentResaleListingId(77L);
+        ResaleListing listing = paymentPendingListing(asset, order);
+
+        when(resaleListingRepository.findByPaymentOrder_IdForUpdate(500L)).thenReturn(Optional.of(listing));
+        when(ticketAssetRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(asset));
+        when(resaleListingRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+        when(orderRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+
+        resaleService.markResalePaymentFailed(order);
+
+        assertThat(order.getOrderStatus()).isEqualTo(OrderStatus.PAYMENT_FAILED);
+        assertThat(listing.getStatus()).isEqualTo(ResaleListingStatus.ACTIVE);
+        assertThat(listing.getBuyerId()).isNull();
+        assertThat(listing.getPaymentOrder()).isNull();
+        assertThat(asset.getAccessStatus()).isEqualTo(TicketAccessStatus.LOCKED_RESALE);
+        verifyNoInteractions(paymentFeignClient);
+    }
+
+    @Test
+    void cancelPendingResaleOrderRestoresListingActiveAndCancelsPayment() {
+        Order order = resaleOrder();
+        TicketAsset asset = validAsset();
+        asset.setAccessStatus(TicketAccessStatus.LOCKED_RESALE);
+        asset.setCurrentResaleListingId(77L);
+        ResaleListing listing = paymentPendingListing(asset, order);
+
+        when(resaleListingRepository.findByPaymentOrder_IdForUpdate(500L)).thenReturn(Optional.of(listing));
+        when(ticketAssetRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(asset));
+        when(paymentFeignClient.cancelPayment("300426123456")).thenReturn(BaseResponse.ok(true));
+        when(resaleListingRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+        when(orderRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+
+        resaleService.cancelPendingResaleOrder(order);
+
+        assertThat(order.getOrderStatus()).isEqualTo(OrderStatus.CANCELLED);
+        assertThat(listing.getStatus()).isEqualTo(ResaleListingStatus.ACTIVE);
+        assertThat(listing.getBuyerId()).isNull();
+        assertThat(listing.getPaymentOrder()).isNull();
+        assertThat(asset.getCurrentOwnerId()).isEqualTo(10L);
+        assertThat(asset.getAccessStatus()).isEqualTo(TicketAccessStatus.LOCKED_RESALE);
+        verify(paymentFeignClient).cancelPayment("300426123456");
+    }
+
+    @Test
+    void finalizePaidResaleOrderIgnoresExpiredOrderWithoutTransfer() {
+        Order order = resaleOrder();
+        order.setOrderStatus(OrderStatus.EXPIRED);
+
+        resaleService.finalizePaidResaleOrder(order, paymentSuccessEvent());
+
+        verify(resaleListingRepository, never()).findByPaymentOrder_IdForUpdate(any());
+        verifyNoInteractions(ticketAssetRepository, ticketProvenanceService);
     }
 
     private TicketAsset validAsset() {

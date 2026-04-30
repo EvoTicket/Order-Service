@@ -259,6 +259,12 @@ public class OrderService {
     public void markFailed(String orderCode) {
         Order order = orderRepository.findByOrderCode(orderCode)
                 .orElseThrow(() -> new AppException(ErrorCode.RESOURCE_NOT_FOUND, "Order not found"));
+        OrderType orderType = order.getOrderType() != null ? order.getOrderType() : OrderType.PRIMARY;
+
+        if (orderType == OrderType.RESALE) {
+            resaleService.markResalePaymentFailed(order);
+            return;
+        }
 
         if (order.getOrderStatus() != OrderStatus.PENDING) return;
 
@@ -341,6 +347,12 @@ public class OrderService {
     @Transactional
     public void cancelOrder(String orderCode) {
         Order order = orderUtil.getOrderByOrderCode(orderCode);
+        OrderType orderType = order.getOrderType() != null ? order.getOrderType() : OrderType.PRIMARY;
+
+        if (orderType == OrderType.RESALE) {
+            resaleService.cancelPendingResaleOrder(order);
+            return;
+        }
 
         if (!order.getOrderStatus().canBeCancelled()) {
             throw new AppException(

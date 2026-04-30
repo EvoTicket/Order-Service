@@ -22,6 +22,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.redis.core.RedisTemplate;
 
 import java.math.BigDecimal;
+import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.*;
@@ -93,6 +94,29 @@ class OrderServiceTest {
 
         verify(resaleService).finalizePaidResaleOrder(order, event);
         verify(redisStreamProducer, never()).sendMessage(eq("order-paid"), any());
+    }
+
+    @Test
+    void markFailedResaleDelegatesWithoutInventoryRelease() {
+        Order order = primaryOrder(OrderType.RESALE);
+        when(orderRepository.findByOrderCode("300426123456")).thenReturn(Optional.of(order));
+
+        orderService.markFailed("300426123456");
+
+        verify(resaleService).markResalePaymentFailed(order);
+        verify(inventoryFeignClient, never()).releaseTickets(any());
+    }
+
+    @Test
+    void cancelOrderResaleDelegatesWithoutInventoryOrPrimaryPaymentCancel() {
+        Order order = primaryOrder(OrderType.RESALE);
+        when(orderUtil.getOrderByOrderCode("300426123456")).thenReturn(order);
+
+        orderService.cancelOrder("300426123456");
+
+        verify(resaleService).cancelPendingResaleOrder(order);
+        verify(inventoryFeignClient, never()).releaseTickets(any());
+        verify(paymentFeignClient, never()).cancelPayment(any());
     }
 
     private Order primaryOrder(OrderType orderType) {

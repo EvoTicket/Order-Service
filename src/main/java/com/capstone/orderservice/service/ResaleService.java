@@ -1,5 +1,7 @@
 package com.capstone.orderservice.service;
 
+import com.capstone.orderservice.client.PaymentFeignClient;
+import com.capstone.orderservice.dto.BaseResponse;
 import com.capstone.orderservice.dto.request.CreateResaleListingRequest;
 import com.capstone.orderservice.dto.request.ResaleCheckoutRequest;
 import com.capstone.orderservice.dto.request.ResaleQuoteRequest;
@@ -22,6 +24,7 @@ import com.capstone.orderservice.repository.ResaleListingRepository;
 import com.capstone.orderservice.repository.TicketAssetRepository;
 import com.capstone.orderservice.security.JwtUtil;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -35,11 +38,13 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.HexFormat;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.ThreadLocalRandom;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class ResaleService {
     private static final List<ResaleListingStatus> ACTIVE_LISTING_STATUSES = List.of(
             ResaleListingStatus.ACTIVE,
@@ -52,6 +57,7 @@ public class ResaleService {
     private final TicketProvenanceService ticketProvenanceService;
     private final OrderRepository orderRepository;
     private final JwtUtil jwtUtil;
+    private final PaymentFeignClient paymentFeignClient;
 
     @Transactional(readOnly = true)
     public ResaleQuoteResponse quote(ResaleQuoteRequest request) {
@@ -229,9 +235,142 @@ public class ResaleService {
     }
 
     @Transactional
+    public void expirePendingResaleOrder(Order order) {
+        if (!isResaleOrder(order)) {
+            return;
+        }
+
+        if (isNonPayableTerminalOrder(order.getOrderStatus())) {
+            log.info("Resale order {} is already terminal as {}; skipping expiration",
+                    order.getOrderCode(), order.getOrderStatus());
+            return;
+        }
+
+        if (order.getOrderStatus() != OrderStatus.PENDING) {
+            log.info("Resale order {} is not pending; skipping expiration", order.getOrderCode());
+            return;
+        }
+
+        Optional<ResaleListing> listingOptional = resaleListingRepository.findByPaymentOrder_IdForUpdate(order.getId());
+        if (listingOptional.isEmpty()) {
+            log.warn("No resale listing found for pending resale order {}; marking order expired", order.getOrderCode());
+            order.setOrderStatus(OrderStatus.EXPIRED);
+            orderRepository.save(order);
+            return;
+        }
+
+        ResaleListing listing = listingOptional.get();
+        if (listing.getStatus() == ResaleListingStatus.SOLD) {
+            log.info("Resale listing {} is sold; skipping expiration for order {}",
+                    listing.getListingCode(), order.getOrderCode());
+            return;
+        }
+
+        if (listing.getStatus() == ResaleListingStatus.PAYMENT_PENDING) {
+            cancelPaymentIfPossible(order);
+            restorePendingResaleCheckout(order, listing, OrderStatus.EXPIRED);
+            return;
+        }
+
+        order.setOrderStatus(OrderStatus.EXPIRED);
+        orderRepository.save(order);
+    }
+
+    @Transactional
+    public void markResalePaymentFailed(Order order) {
+        if (!isResaleOrder(order)) {
+            return;
+        }
+
+        if (isNonPayableTerminalOrder(order.getOrderStatus())) {
+            log.info("Resale order {} is already terminal as {}; skipping failure handling",
+                    order.getOrderCode(), order.getOrderStatus());
+            return;
+        }
+
+        if (order.getOrderStatus() != OrderStatus.PENDING) {
+            log.info("Resale order {} is not pending; skipping failure handling", order.getOrderCode());
+            return;
+        }
+
+        Optional<ResaleListing> listingOptional = resaleListingRepository.findByPaymentOrder_IdForUpdate(order.getId());
+        if (listingOptional.isEmpty()) {
+            log.warn("No resale listing found for failed resale order {}; marking order failed", order.getOrderCode());
+            order.setOrderStatus(OrderStatus.PAYMENT_FAILED);
+            orderRepository.save(order);
+            return;
+        }
+
+        ResaleListing listing = listingOptional.get();
+        if (listing.getStatus() == ResaleListingStatus.SOLD) {
+            log.info("Resale listing {} is sold; skipping failure handling for order {}",
+                    listing.getListingCode(), order.getOrderCode());
+            return;
+        }
+
+        if (listing.getStatus() == ResaleListingStatus.PAYMENT_PENDING) {
+            restorePendingResaleCheckout(order, listing, OrderStatus.PAYMENT_FAILED);
+            return;
+        }
+
+        order.setOrderStatus(OrderStatus.PAYMENT_FAILED);
+        orderRepository.save(order);
+    }
+
+    @Transactional
+    public void cancelPendingResaleOrder(Order order) {
+        if (!isResaleOrder(order)) {
+            return;
+        }
+
+        if (isNonPayableTerminalOrder(order.getOrderStatus())) {
+            log.info("Resale order {} is already terminal as {}; skipping cancellation",
+                    order.getOrderCode(), order.getOrderStatus());
+            return;
+        }
+
+        if (order.getOrderStatus() != OrderStatus.PENDING) {
+            log.info("Resale order {} is not pending; skipping cancellation", order.getOrderCode());
+            return;
+        }
+
+        Optional<ResaleListing> listingOptional = resaleListingRepository.findByPaymentOrder_IdForUpdate(order.getId());
+        if (listingOptional.isEmpty()) {
+            log.warn("No resale listing found for resale order {}; cancelling order only", order.getOrderCode());
+            cancelPaymentIfPossible(order);
+            order.setOrderStatus(OrderStatus.CANCELLED);
+            orderRepository.save(order);
+            return;
+        }
+
+        ResaleListing listing = listingOptional.get();
+        if (listing.getStatus() == ResaleListingStatus.SOLD) {
+            log.info("Resale listing {} is sold; skipping cancellation for order {}",
+                    listing.getListingCode(), order.getOrderCode());
+            return;
+        }
+
+        cancelPaymentIfPossible(order);
+
+        if (listing.getStatus() == ResaleListingStatus.PAYMENT_PENDING) {
+            restorePendingResaleCheckout(order, listing, OrderStatus.CANCELLED);
+            return;
+        }
+
+        order.setOrderStatus(OrderStatus.CANCELLED);
+        orderRepository.save(order);
+    }
+
+    @Transactional
     public void finalizePaidResaleOrder(Order order, PaymentSuccessEvent event) {
         if (order.getOrderType() != OrderType.RESALE) {
             throw new AppException(ErrorCode.BAD_REQUEST, "Order is not a resale order");
+        }
+
+        if (isNonPayableTerminalOrder(order.getOrderStatus())) {
+            log.warn("Ignoring late resale payment-success for terminal order {} with status {}",
+                    order.getOrderCode(), order.getOrderStatus());
+            return;
         }
 
         ResaleListing listing = resaleListingRepository.findByPaymentOrder_IdForUpdate(order.getId())
@@ -274,6 +413,57 @@ public class ResaleService {
         ticketProvenanceService.recordResalePurchased(asset, listing, order);
         ticketProvenanceService.recordOwnershipTransferred(asset, listing, order, sellerId, buyerId);
         ticketProvenanceService.recordQrRotated(asset, listing, order, sellerId, buyerId, oldQrVersion, newQrVersion);
+    }
+
+    private void restorePendingResaleCheckout(
+            Order order,
+            ResaleListing listing,
+            OrderStatus restoredOrderStatus
+    ) {
+        order.setOrderStatus(restoredOrderStatus);
+
+        listing.setStatus(ResaleListingStatus.ACTIVE);
+        listing.setBuyerId(null);
+        listing.setPaymentOrder(null);
+
+        TicketAsset listingAsset = listing.getTicketAsset();
+        Long ticketAssetId = listingAsset != null ? listingAsset.getId() : null;
+        if (ticketAssetId != null) {
+            Optional<TicketAsset> assetOptional = ticketAssetRepository.findByIdForUpdate(ticketAssetId);
+            if (assetOptional.isPresent()) {
+                TicketAsset asset = assetOptional.get();
+                asset.setCurrentOwnerId(listing.getSellerId());
+                asset.setAccessStatus(TicketAccessStatus.LOCKED_RESALE);
+                asset.setCurrentResaleListingId(listing.getId());
+                ticketAssetRepository.save(asset);
+            } else {
+                log.warn("Ticket asset {} not found while restoring resale listing {}", ticketAssetId, listing.getListingCode());
+            }
+        }
+
+        resaleListingRepository.save(listing);
+        orderRepository.save(order);
+    }
+
+    private boolean isResaleOrder(Order order) {
+        return order != null && order.getOrderType() == OrderType.RESALE;
+    }
+
+    private boolean isNonPayableTerminalOrder(OrderStatus orderStatus) {
+        return orderStatus == OrderStatus.EXPIRED
+                || orderStatus == OrderStatus.CANCELLED
+                || orderStatus == OrderStatus.PAYMENT_FAILED;
+    }
+
+    private void cancelPaymentIfPossible(Order order) {
+        try {
+            BaseResponse<Boolean> response = paymentFeignClient.cancelPayment(order.getOrderCode());
+            if (response == null || !Boolean.TRUE.equals(response.getData())) {
+                log.warn("Payment cancellation returned non-success for resale order {}", order.getOrderCode());
+            }
+        } catch (Exception e) {
+            log.warn("Payment cancellation failed for resale order {}", order.getOrderCode(), e);
+        }
     }
 
     private ResaleQuoteResponse toQuoteResponse(
