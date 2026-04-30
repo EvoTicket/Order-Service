@@ -27,6 +27,8 @@ public interface ResaleListingRepository extends JpaRepository<ResaleListing, Lo
     @Query("SELECT r FROM ResaleListing r WHERE r.paymentOrder.id = :paymentOrderId")
     Optional<ResaleListing> findByPaymentOrder_IdForUpdate(@Param("paymentOrderId") Long paymentOrderId);
 
+    Optional<ResaleListing> findByPaymentOrder_Id(Long paymentOrderId);
+
     boolean existsByTicketAsset_IdAndStatusIn(Long ticketAssetId, Collection<ResaleListingStatus> statuses);
 
     @Query("""

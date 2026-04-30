@@ -1,13 +1,16 @@
 package com.capstone.orderservice.service;
 
 import com.capstone.orderservice.client.PaymentFeignClient;
+import com.capstone.orderservice.client.PaymentTransactionResponse;
 import com.capstone.orderservice.dto.BaseResponse;
 import com.capstone.orderservice.dto.request.CreateResaleListingRequest;
 import com.capstone.orderservice.dto.request.ResaleCheckoutRequest;
 import com.capstone.orderservice.dto.request.ResaleQuoteRequest;
 import com.capstone.orderservice.dto.event.PaymentSuccessEvent;
+import com.capstone.orderservice.dto.response.PaymentLinkResponse;
 import com.capstone.orderservice.dto.response.ResaleCheckoutResponse;
 import com.capstone.orderservice.dto.response.ResaleListingResponse;
+import com.capstone.orderservice.dto.response.ResalePaymentStatusResponse;
 import com.capstone.orderservice.dto.response.ResaleQuoteResponse;
 import com.capstone.orderservice.entity.Order;
 import com.capstone.orderservice.entity.OrderItem;
@@ -15,6 +18,7 @@ import com.capstone.orderservice.entity.ResaleListing;
 import com.capstone.orderservice.entity.TicketAsset;
 import com.capstone.orderservice.enums.OrderStatus;
 import com.capstone.orderservice.enums.OrderType;
+import com.capstone.orderservice.enums.ResalePaymentResultStatus;
 import com.capstone.orderservice.enums.ResaleListingStatus;
 import com.capstone.orderservice.enums.TicketAccessStatus;
 import com.capstone.orderservice.exception.AppException;
@@ -58,6 +62,10 @@ public class ResaleService {
     private final OrderRepository orderRepository;
     private final JwtUtil jwtUtil;
     private final PaymentFeignClient paymentFeignClient;
+
+    @org.springframework.beans.factory.annotation.Autowired
+    @org.springframework.context.annotation.Lazy
+    private ResaleService self;
 
     @Transactional(readOnly = true)
     public ResaleQuoteResponse quote(ResaleQuoteRequest request) {
@@ -189,8 +197,27 @@ public class ResaleService {
         return ResaleListingResponse.fromEntity(listing);
     }
 
-    @Transactional
     public ResaleCheckoutResponse checkout(String listingCode, ResaleCheckoutRequest request) {
+        ResaleService transactionalService = self != null ? self : this;
+        ResaleCheckoutResponse response = transactionalService.createResaleCheckout(listingCode, request);
+
+        try {
+            PaymentLinkResponse paymentLink = createPaymentLinkOrThrow(response.getOrderCode());
+            response.setRedirectUrl(paymentLink.getRedirectUrl());
+            return response;
+        } catch (Exception e) {
+            try {
+                transactionalService.restoreFailedPaymentInitialization(response.getOrderCode());
+            } catch (Exception restoreException) {
+                log.error("Failed to restore resale checkout after payment initialization failure for order {}",
+                        response.getOrderCode(), restoreException);
+            }
+            throw new AppException(ErrorCode.PAYMENT_GATEWAY_ERROR, "Unable to initialize resale payment", e);
+        }
+    }
+
+    @Transactional
+    public ResaleCheckoutResponse createResaleCheckout(String listingCode, ResaleCheckoutRequest request) {
         Long buyerId = jwtUtil.getDataFromAuth().userId();
         ResaleListing listing = resaleListingRepository.findByListingCodeForUpdate(listingCode)
                 .orElseThrow(() -> new AppException(ErrorCode.RESOURCE_NOT_FOUND, "Resale listing not found"));
@@ -232,6 +259,105 @@ public class ResaleService {
                 .status(savedListing.getStatus())
                 .message("Resale checkout order created. Awaiting payment.")
                 .build();
+    }
+
+    @Transactional
+    public void restoreFailedPaymentInitialization(String orderCode) {
+        Order order = orderRepository.findByOrderCodeForUpdate(orderCode)
+                .orElseThrow(() -> new AppException(ErrorCode.RESOURCE_NOT_FOUND, "Order not found"));
+        if (!isResaleOrder(order)) {
+            return;
+        }
+
+        Optional<ResaleListing> listingOptional = resaleListingRepository.findByPaymentOrder_IdForUpdate(order.getId());
+        if (listingOptional.isPresent()) {
+            ResaleListing listing = listingOptional.get();
+            if (listing.getStatus() == ResaleListingStatus.SOLD) {
+                return;
+            }
+
+            if (listing.getStatus() == ResaleListingStatus.PAYMENT_PENDING) {
+                OrderStatus restoredStatus = isNonPayableTerminalOrder(order.getOrderStatus())
+                        ? order.getOrderStatus()
+                        : OrderStatus.PAYMENT_FAILED;
+                restorePendingResaleCheckout(order, listing, restoredStatus);
+                return;
+            }
+        }
+
+        if (order.getOrderStatus() == OrderStatus.PENDING) {
+            order.setOrderStatus(OrderStatus.PAYMENT_FAILED);
+            orderRepository.save(order);
+        }
+    }
+
+    @Transactional(readOnly = true)
+    public ResalePaymentStatusResponse getPaymentStatus(String orderCode) {
+        Order order = orderRepository.findByOrderCode(orderCode)
+                .orElseThrow(() -> new AppException(ErrorCode.RESOURCE_NOT_FOUND, "Order not found"));
+        ensureResaleOrder(order);
+
+        ResaleListing listing = findListingForStatus(order);
+        TicketAsset asset = findTicketAssetForOrder(order, listing);
+        validateCanViewResalePayment(order, listing, asset);
+
+        boolean hasPaymentTransaction = order.getOrderStatus() == OrderStatus.PAYMENT_FAILED
+                && paymentTransactionExists(order.getOrderCode());
+        return buildPaymentStatusResponse(order, listing, asset, null, hasPaymentTransaction);
+    }
+
+    public ResalePaymentStatusResponse continuePayment(String orderCode) {
+        ResaleService transactionalService = self != null ? self : this;
+        ResalePaymentStatusResponse response = transactionalService.validateContinuePayment(orderCode);
+
+        try {
+            PaymentLinkResponse paymentLink = createPaymentLinkOrThrow(orderCode);
+            response.setRedirectUrl(paymentLink.getRedirectUrl());
+            return response;
+        } catch (Exception e) {
+            throw new AppException(ErrorCode.PAYMENT_GATEWAY_ERROR, "Unable to initialize resale payment", e);
+        }
+    }
+
+    @Transactional
+    public ResalePaymentStatusResponse validateContinuePayment(String orderCode) {
+        Order order = orderRepository.findByOrderCodeForUpdate(orderCode)
+                .orElseThrow(() -> new AppException(ErrorCode.RESOURCE_NOT_FOUND, "Order not found"));
+        ensureResaleOrder(order);
+
+        ResaleListing listing = resaleListingRepository.findByPaymentOrder_IdForUpdate(order.getId())
+                .orElseThrow(() -> new AppException(ErrorCode.BAD_REQUEST, "Resale listing is not awaiting payment"));
+        TicketAsset asset = ticketAssetRepository.findByIdForUpdate(listing.getTicketAsset().getId())
+                .orElseThrow(() -> new AppException(ErrorCode.RESOURCE_NOT_FOUND, "Ticket not found"));
+
+        Long currentUserId = jwtUtil.getDataFromAuth().userId();
+        boolean isBuyer = currentUserId.equals(order.getUserId())
+                || (listing.getBuyerId() != null && currentUserId.equals(listing.getBuyerId()));
+        if (!isBuyer) {
+            throw new AppException(ErrorCode.FORBIDDEN, "You cannot continue this resale payment");
+        }
+
+        if (order.getOrderStatus() != OrderStatus.PENDING) {
+            throw new AppException(ErrorCode.BAD_REQUEST, "Resale order is not pending");
+        }
+
+        if (listing.getStatus() != ResaleListingStatus.PAYMENT_PENDING) {
+            throw new AppException(ErrorCode.BAD_REQUEST, "Resale listing is not awaiting payment");
+        }
+
+        if (listing.getPaymentOrder() == null || !order.getId().equals(listing.getPaymentOrder().getId())) {
+            throw new AppException(ErrorCode.BAD_REQUEST, "Resale listing payment order does not match");
+        }
+
+        if (listing.getBuyerId() == null || !listing.getBuyerId().equals(order.getUserId())) {
+            throw new AppException(ErrorCode.BAD_REQUEST, "Resale listing buyer does not match order buyer");
+        }
+
+        if (!listing.getSellerId().equals(asset.getCurrentOwnerId())) {
+            throw new AppException(ErrorCode.BAD_REQUEST, "Ticket owner no longer matches listing seller");
+        }
+
+        return buildPaymentStatusResponse(order, listing, asset, null, true);
     }
 
     @Transactional
@@ -413,6 +539,156 @@ public class ResaleService {
         ticketProvenanceService.recordResalePurchased(asset, listing, order);
         ticketProvenanceService.recordOwnershipTransferred(asset, listing, order, sellerId, buyerId);
         ticketProvenanceService.recordQrRotated(asset, listing, order, sellerId, buyerId, oldQrVersion, newQrVersion);
+    }
+
+    private PaymentLinkResponse createPaymentLinkOrThrow(String orderCode) {
+        BaseResponse<PaymentLinkResponse> response = paymentFeignClient.createPaymentLink(orderCode);
+        PaymentLinkResponse paymentLink = response != null ? response.getData() : null;
+        if (paymentLink == null
+                || paymentLink.getRedirectUrl() == null
+                || paymentLink.getRedirectUrl().isBlank()) {
+            throw new AppException(ErrorCode.PAYMENT_GATEWAY_ERROR, "Unable to initialize resale payment");
+        }
+        return paymentLink;
+    }
+
+    private void ensureResaleOrder(Order order) {
+        OrderType orderType = order.getOrderType() != null ? order.getOrderType() : OrderType.PRIMARY;
+        if (orderType != OrderType.RESALE) {
+            throw new AppException(ErrorCode.RESOURCE_NOT_FOUND, "Resale order not found");
+        }
+    }
+
+    private ResaleListing findListingForStatus(Order order) {
+        if (order.getId() != null) {
+            Optional<ResaleListing> paymentListing = resaleListingRepository.findByPaymentOrder_Id(order.getId());
+            if (paymentListing.isPresent()) {
+                return paymentListing.get();
+            }
+        }
+
+        TicketAsset asset = findTicketAssetForOrder(order, null);
+        if (asset == null || asset.getCurrentResaleListingId() == null) {
+            return null;
+        }
+
+        return resaleListingRepository.findById(asset.getCurrentResaleListingId()).orElse(null);
+    }
+
+    private TicketAsset findTicketAssetForOrder(Order order, ResaleListing listing) {
+        if (listing != null && listing.getTicketAsset() != null) {
+            return listing.getTicketAsset();
+        }
+
+        if (order.getOrderItems() == null || order.getOrderItems().isEmpty()) {
+            return null;
+        }
+
+        String ticketCode = order.getOrderItems().getFirst().getTicketCode();
+        if (ticketCode == null || ticketCode.isBlank()) {
+            return null;
+        }
+
+        return ticketAssetRepository.findByTicketCodeOrAssetCode(ticketCode, ticketCode).orElse(null);
+    }
+
+    private void validateCanViewResalePayment(Order order, ResaleListing listing, TicketAsset asset) {
+        Long currentUserId = jwtUtil.getDataFromAuth().userId();
+        boolean isBuyer = currentUserId.equals(order.getUserId())
+                || (listing != null && listing.getBuyerId() != null && currentUserId.equals(listing.getBuyerId()));
+        boolean isSeller = listing != null && currentUserId.equals(listing.getSellerId());
+        boolean isCurrentOwner = asset != null && currentUserId.equals(asset.getCurrentOwnerId());
+
+        if (!isBuyer && !isSeller && !isCurrentOwner) {
+            throw new AppException(ErrorCode.FORBIDDEN, "You cannot view this resale payment");
+        }
+    }
+
+    private boolean paymentTransactionExists(String orderCode) {
+        try {
+            BaseResponse<PaymentTransactionResponse> response = paymentFeignClient.getPaymentInfo(orderCode);
+            return response != null && response.getData() != null;
+        } catch (Exception e) {
+            log.info("Payment transaction not available for resale order {}", orderCode);
+            return false;
+        }
+    }
+
+    private ResalePaymentStatusResponse buildPaymentStatusResponse(
+            Order order,
+            ResaleListing listing,
+            TicketAsset asset,
+            String redirectUrl,
+            boolean hasPaymentTransaction
+    ) {
+        ResalePaymentResultStatus resultStatus = determinePaymentResultStatus(order, listing, hasPaymentTransaction);
+        boolean canContinuePayment = resultStatus == ResalePaymentResultStatus.PENDING
+                && order.getOrderStatus() == OrderStatus.PENDING
+                && listing != null
+                && listing.getStatus() == ResaleListingStatus.PAYMENT_PENDING;
+        boolean canCheckoutAgain = listing != null
+                && listing.getStatus() == ResaleListingStatus.ACTIVE
+                && (resultStatus == ResalePaymentResultStatus.CANCELLED
+                || resultStatus == ResalePaymentResultStatus.EXPIRED
+                || resultStatus == ResalePaymentResultStatus.FAILED
+                || resultStatus == ResalePaymentResultStatus.GATEWAY_ERROR);
+
+        return ResalePaymentStatusResponse.builder()
+                .orderCode(order.getOrderCode())
+                .listingCode(listing != null ? listing.getListingCode() : null)
+                .ticketAssetId(asset != null ? asset.getId() : null)
+                .paymentMethod(order.getPaymentMethod())
+                .orderStatus(order.getOrderStatus())
+                .listingStatus(listing != null ? listing.getStatus() : null)
+                .resultStatus(resultStatus)
+                .amount(order.getFinalAmount())
+                .buyerId(listing != null && listing.getBuyerId() != null ? listing.getBuyerId() : order.getUserId())
+                .sellerId(listing != null ? listing.getSellerId() : asset != null ? asset.getCurrentOwnerId() : null)
+                .createdAt(order.getCreatedAt())
+                .updatedAt(order.getUpdatedAt())
+                .expiresAt(listing != null ? listing.getExpiresAt() : null)
+                .canContinuePayment(canContinuePayment)
+                .canCheckoutAgain(canCheckoutAgain)
+                .canChooseAnotherMethod(canCheckoutAgain)
+                .redirectUrl(redirectUrl)
+                .message(messageForResultStatus(resultStatus))
+                .build();
+    }
+
+    private ResalePaymentResultStatus determinePaymentResultStatus(
+            Order order,
+            ResaleListing listing,
+            boolean hasPaymentTransaction
+    ) {
+        ResaleListingStatus listingStatus = listing != null ? listing.getStatus() : null;
+        if (order.getOrderStatus() == OrderStatus.CONFIRMED && listingStatus == ResaleListingStatus.SOLD) {
+            return ResalePaymentResultStatus.SUCCESS;
+        }
+        if (order.getOrderStatus() == OrderStatus.PENDING && listingStatus == ResaleListingStatus.PAYMENT_PENDING) {
+            return ResalePaymentResultStatus.PENDING;
+        }
+        if (order.getOrderStatus() == OrderStatus.EXPIRED) {
+            return ResalePaymentResultStatus.EXPIRED;
+        }
+        if (order.getOrderStatus() == OrderStatus.CANCELLED) {
+            return ResalePaymentResultStatus.CANCELLED;
+        }
+        if (order.getOrderStatus() == OrderStatus.PAYMENT_FAILED) {
+            return hasPaymentTransaction ? ResalePaymentResultStatus.FAILED : ResalePaymentResultStatus.GATEWAY_ERROR;
+        }
+        return ResalePaymentResultStatus.UNKNOWN;
+    }
+
+    private String messageForResultStatus(ResalePaymentResultStatus resultStatus) {
+        return switch (resultStatus) {
+            case SUCCESS -> "Resale payment completed";
+            case PENDING -> "Resale payment is pending";
+            case CANCELLED -> "Resale payment was cancelled";
+            case EXPIRED -> "Resale payment expired";
+            case FAILED -> "Resale payment failed";
+            case GATEWAY_ERROR -> "Unable to initialize resale payment";
+            case UNKNOWN -> "Unable to determine resale payment status";
+        };
     }
 
     private void restorePendingResaleCheckout(

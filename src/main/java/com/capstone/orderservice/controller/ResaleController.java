@@ -7,6 +7,7 @@ import com.capstone.orderservice.dto.request.ResaleCheckoutRequest;
 import com.capstone.orderservice.dto.request.ResaleQuoteRequest;
 import com.capstone.orderservice.dto.response.ResaleCheckoutResponse;
 import com.capstone.orderservice.dto.response.ResaleListingResponse;
+import com.capstone.orderservice.dto.response.ResalePaymentStatusResponse;
 import com.capstone.orderservice.dto.response.ResaleQuoteResponse;
 import com.capstone.orderservice.service.ResaleService;
 import jakarta.validation.Valid;
@@ -86,5 +87,17 @@ public class ResaleController {
     ) {
         return ResponseEntity.ok(BaseResponse.created("Resale checkout order created successfully",
                 resaleService.checkout(listingCode, request)));
+    }
+
+    @GetMapping("/orders/{orderCode}/payment-status")
+    public ResponseEntity<BaseResponse<ResalePaymentStatusResponse>> getPaymentStatus(@PathVariable String orderCode) {
+        return ResponseEntity.ok(BaseResponse.ok("Fetched resale payment status successfully",
+                resaleService.getPaymentStatus(orderCode)));
+    }
+
+    @PostMapping("/orders/{orderCode}/continue-payment")
+    public ResponseEntity<BaseResponse<ResalePaymentStatusResponse>> continuePayment(@PathVariable String orderCode) {
+        return ResponseEntity.ok(BaseResponse.ok("Resale payment link created successfully",
+                resaleService.continuePayment(orderCode)));
     }
 }
