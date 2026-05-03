@@ -5,9 +5,11 @@ import com.capstone.orderservice.client.PaymentFeignClient;
 import com.capstone.orderservice.dto.request.OrderItemRequest;
 import com.capstone.orderservice.entity.Order;
 import com.capstone.orderservice.enums.OrderStatus;
+import com.capstone.orderservice.enums.OrderType;
 import com.capstone.orderservice.exception.AppException;
 import com.capstone.orderservice.exception.ErrorCode;
 import com.capstone.orderservice.repository.OrderRepository;
+import com.capstone.orderservice.service.ResaleService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.RedisTemplate;
@@ -25,6 +27,7 @@ public class OrderScheduler {
     private final InventoryFeignClient inventoryFeignClient;
     private final PaymentFeignClient paymentFeignClient;
     private final RedisTemplate<String, Object> redisTemplate;
+    private final ResaleService resaleService;
 
     @Scheduled(fixedRate = 60000)
     public void releaseExpiredOrders() {
@@ -35,6 +38,12 @@ public class OrderScheduler {
         );
 
         for (Order order : expired) {
+            OrderType orderType = order.getOrderType() != null ? order.getOrderType() : OrderType.PRIMARY;
+            if (orderType == OrderType.RESALE) {
+                resaleService.expirePendingResaleOrder(order);
+                continue;
+            }
+
             String sessionKey = "booking:session:" + order.getBookingSessionId();
             Boolean sessionExists = redisTemplate.hasKey(sessionKey);
 

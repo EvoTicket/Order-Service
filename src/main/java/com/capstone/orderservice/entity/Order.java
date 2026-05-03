@@ -1,6 +1,7 @@
 package com.capstone.orderservice.entity;
 
 import com.capstone.orderservice.enums.OrderStatus;
+import com.capstone.orderservice.enums.OrderType;
 import com.capstone.orderservice.enums.PaymentMethod;
 import jakarta.persistence.*;
 import lombok.*;
@@ -52,6 +53,11 @@ public class Order {
     @Column(name = "order_status")
     private OrderStatus orderStatus;
 
+    @Builder.Default
+    @Enumerated(EnumType.STRING)
+    @Column(name = "order_type", nullable = false)
+    private OrderType orderType = OrderType.PRIMARY;
+
     @OneToMany(mappedBy = "order", cascade = CascadeType.ALL, orphanRemoval = true)
     @Builder.Default
     private List<OrderVoucher> orderVouchers = new ArrayList<>();
@@ -76,6 +82,9 @@ public class Order {
     protected void onCreate() {
         createdAt = LocalDateTime.now();
         updatedAt = LocalDateTime.now();
+        if (orderType == null) {
+            orderType = OrderType.PRIMARY;
+        }
     }
 
     @PreUpdate
