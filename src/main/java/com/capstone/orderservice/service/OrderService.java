@@ -22,7 +22,6 @@ import com.capstone.orderservice.security.JwtUtil;
 import com.capstone.orderservice.util.OrderUtil;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -32,7 +31,6 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
-import java.time.Duration;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
@@ -56,6 +54,8 @@ public class OrderService {
     private final RedisStreamProducer redisStreamProducer;
     private final ObjectMapper objectMapper;
     private final PaymentFeignClient paymentFeignClient;
+    private final TicketAssetService ticketAssetService;
+    private final ResaleService resaleService;
     private final OrderService self;
 
     public OrderService(OrderRepository orderRepository,
@@ -67,6 +67,8 @@ public class OrderService {
                         RedisStreamProducer redisStreamProducer,
                         ObjectMapper objectMapper,
                         PaymentFeignClient paymentFeignClient,
+                        TicketAssetService ticketAssetService,
+                        ResaleService resaleService,
                         @org.springframework.context.annotation.Lazy OrderService self) {
         this.orderRepository = orderRepository;
         this.voucherService = voucherService;
@@ -78,6 +80,8 @@ public class OrderService {
         this.objectMapper = objectMapper;
         this.paymentFeignClient = paymentFeignClient;
         this.self = self;
+        this.ticketAssetService = ticketAssetService;
+        this.resaleService = resaleService;
     }
 
     public PaymentLinkResponse createOrder(CreateOrderRequest request) {
