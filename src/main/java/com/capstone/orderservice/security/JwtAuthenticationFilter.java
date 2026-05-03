@@ -60,7 +60,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                                 email,
                                 null,
                                 roles.stream()
-                                        .map(r -> new SimpleGrantedAuthority("ROLE_" + r))
+                                        .map(r -> new SimpleGrantedAuthority(r.startsWith("ROLE_") ? r : "ROLE_" + r))
                                         .toList()
                         );
 
