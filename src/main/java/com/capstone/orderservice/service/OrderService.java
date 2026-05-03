@@ -44,7 +44,6 @@ import java.util.concurrent.ThreadLocalRandom;
 import java.util.stream.Collectors;
 
 @Service
-@RequiredArgsConstructor
 @Slf4j
 public class OrderService {
     private final OrderRepository orderRepository;
@@ -56,10 +55,29 @@ public class OrderService {
     private final RedisStreamProducer redisStreamProducer;
     private final ObjectMapper objectMapper;
     private final PaymentFeignClient paymentFeignClient;
+    private final OrderService self;
 
-    @org.springframework.beans.factory.annotation.Autowired
-    @org.springframework.context.annotation.Lazy
-    private OrderService self;
+    public OrderService(OrderRepository orderRepository,
+                        VoucherService voucherService,
+                        OrderUtil orderUtil,
+                        JwtUtil jwtUtil,
+                        InventoryFeignClient inventoryFeignClient,
+                        RedisTemplate<String, Object> redisTemplate,
+                        RedisStreamProducer redisStreamProducer,
+                        ObjectMapper objectMapper,
+                        PaymentFeignClient paymentFeignClient,
+                        @org.springframework.context.annotation.Lazy OrderService self) {
+        this.orderRepository = orderRepository;
+        this.voucherService = voucherService;
+        this.orderUtil = orderUtil;
+        this.jwtUtil = jwtUtil;
+        this.inventoryFeignClient = inventoryFeignClient;
+        this.redisTemplate = redisTemplate;
+        this.redisStreamProducer = redisStreamProducer;
+        this.objectMapper = objectMapper;
+        this.paymentFeignClient = paymentFeignClient;
+        this.self = self;
+    }
 
     public PaymentLinkResponse createOrder(CreateOrderRequest request) {
         Order order = self.createOrderInternal(request);
