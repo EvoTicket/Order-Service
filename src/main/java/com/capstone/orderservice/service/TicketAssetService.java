@@ -2,7 +2,8 @@ package com.capstone.orderservice.service;
 
 import com.capstone.orderservice.client.EventDetailInternalResponse;
 import com.capstone.orderservice.client.InventoryFeignClient;
-import com.capstone.orderservice.dto.response.MyTicketsResponse;
+import com.capstone.orderservice.dto.response.MyTicketGroupResponse;
+import com.capstone.orderservice.dto.response.MyTicketItemResponse;
 import com.capstone.orderservice.dto.response.ResaleEligibilityResponse;
 import com.capstone.orderservice.dto.response.TicketAssetResponse;
 import com.capstone.orderservice.entity.Order;
@@ -23,9 +24,12 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
+import java.util.stream.Collectors;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -68,25 +72,74 @@ public class TicketAssetService {
     }
 
     @Transactional(readOnly = true)
-    public MyTicketsResponse getMyTickets() {
+    public List<MyTicketGroupResponse> getMyTickets() {
         Long currentUserId = jwtUtil.getDataFromAuth().userId();
-        LocalDateTime now = LocalDateTime.now();
         List<TicketAsset> assets = ticketAssetRepository.findByCurrentOwnerId(currentUserId);
 
-        List<TicketAssetResponse> tickets = assets.stream()
-                .map(asset -> toTicketAssetResponse(asset, currentUserId, now))
-                .toList();
+        Map<Long, List<TicketAsset>> assetsByOrder = assets.stream()
+                .collect(Collectors.groupingBy(TicketAsset::getOriginalOrderId));
 
-        return MyTicketsResponse.builder()
-                .totalTickets((long) assets.size())
-                .activeCount(assets.stream().filter(this::isActiveTicket).count())
-                .usedCount(assets.stream().filter(this::isUsedTicket).count())
-                .mintPendingCount(assets.stream()
-                        .filter(asset -> asset.getChainStatus() == TicketChainStatus.MINT_PENDING)
-                        .count())
-                .onSaleCount(assets.stream().filter(this::isOnSaleTicket).count())
-                .tickets(tickets)
-                .build();
+        DateTimeFormatter dateFormatter = DateTimeFormatter.ofPattern(
+                "HH:mm '·' EEEE, dd/MM/yyyy",
+                Locale.of("vi", "VN")
+        );
+
+        return assetsByOrder.entrySet().stream().map(entry -> {
+            Long orderId = entry.getKey();
+            List<TicketAsset> groupAssets = entry.getValue();
+            TicketAsset firstAsset = groupAssets.get(0);
+
+            String eventName = firstAsset.getEventName();
+            String dateStr = firstAsset.getEventStartTime() != null 
+                ? firstAsset.getEventStartTime().format(dateFormatter) 
+                : "";
+            
+            String venue = firstAsset.getVenueName();
+            if (firstAsset.getVenueAddress() != null && !firstAsset.getVenueAddress().isEmpty()) {
+                venue += ", " + firstAsset.getVenueAddress();
+            }
+
+            Map<String, Long> countByType = groupAssets.stream()
+                .collect(Collectors.groupingBy(TicketAsset::getTicketTypeName, Collectors.counting()));
+            String summary = countByType.entrySet().stream()
+                .map(e -> e.getValue() + " " + e.getKey())
+                .collect(Collectors.joining(" · "));
+
+            Map<String, Long> countByStatus = groupAssets.stream()
+                .collect(Collectors.groupingBy(this::getDisplayStatusName, Collectors.counting()));
+            String statusSummary = countByStatus.entrySet().stream()
+                .map(e -> e.getValue() + " " + e.getKey())
+                .collect(Collectors.joining(" · "));
+
+            List<MyTicketItemResponse> tickets = groupAssets.stream().map(asset -> {
+                String status = determineTicketStatus(asset);
+                String tokenIdStr = asset.getTokenId();
+                if (tokenIdStr != null && !tokenIdStr.startsWith("#")) {
+                    tokenIdStr = "#" + tokenIdStr;
+                }
+                return MyTicketItemResponse.builder()
+                        .id(asset.getId())
+                        .ticketName("Vé")
+                        .ticketType(asset.getTicketTypeName())
+                        .seat(asset.getTicketTypeName())
+                        .ticketId(asset.getTicketCode())
+                        .tokenId(tokenIdStr != null ? tokenIdStr : "")
+                        .status(status)
+                        .build();
+            }).toList();
+
+            return MyTicketGroupResponse.builder()
+                    .id(orderId)
+                    .eventName(eventName)
+                    .date(dateStr)
+                    .venue(venue)
+                    .orderId(firstAsset.getOriginalOrderCode())
+                    .totalTickets(groupAssets.size())
+                    .summary(summary)
+                    .statusSummary(statusSummary)
+                    .tickets(tickets)
+                    .build();
+        }).toList();
     }
 
     @Transactional(readOnly = true)
@@ -259,6 +312,20 @@ public class TicketAssetService {
     private boolean isOnSaleTicket(TicketAsset asset) {
         return asset.getAccessStatus() == TicketAccessStatus.LOCKED_RESALE
                 || asset.getCurrentResaleListingId() != null;
+    }
+
+    private String getDisplayStatusName(TicketAsset asset) {
+        if (isOnSaleTicket(asset)) return "On Sale";
+        if (isUsedTicket(asset)) return "Used";
+        if (asset.getChainStatus() == TicketChainStatus.MINT_PENDING) return "Mint Pending";
+        return "Active";
+    }
+
+    private String determineTicketStatus(TicketAsset asset) {
+        if (isOnSaleTicket(asset)) return "on_sale";
+        if (isUsedTicket(asset)) return "used";
+        if (asset.getChainStatus() == TicketChainStatus.MINT_PENDING) return "minting";
+        return "active";
     }
 
     private record EligibilityDecision(boolean canResell, String reasonCode, String reasonMessage) {

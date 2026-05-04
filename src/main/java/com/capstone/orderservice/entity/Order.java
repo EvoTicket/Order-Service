@@ -55,7 +55,7 @@ public class Order {
 
     @Builder.Default
     @Enumerated(EnumType.STRING)
-    @Column(name = "order_type", nullable = false)
+    @Column(name = "order_type")
     private OrderType orderType = OrderType.PRIMARY;
 
     @OneToMany(mappedBy = "order", cascade = CascadeType.ALL, orphanRemoval = true)

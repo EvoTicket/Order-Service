@@ -1,7 +1,7 @@
 package com.capstone.orderservice.controller;
 
 import com.capstone.orderservice.dto.BaseResponse;
-import com.capstone.orderservice.dto.response.MyTicketsResponse;
+import com.capstone.orderservice.dto.response.MyTicketGroupResponse;
 import com.capstone.orderservice.dto.response.ResaleEligibilityResponse;
 import com.capstone.orderservice.dto.response.TicketAssetResponse;
 import com.capstone.orderservice.dto.response.TicketProvenanceResponse;
@@ -22,7 +22,7 @@ public class TicketController {
     private final TicketProvenanceService ticketProvenanceService;
 
     @GetMapping("/me")
-    public ResponseEntity<BaseResponse<MyTicketsResponse>> getMyTickets() {
+    public ResponseEntity<BaseResponse<java.util.List<MyTicketGroupResponse>>> getMyTickets() {
         return ResponseEntity.ok(BaseResponse.ok("Fetched my tickets successfully", ticketAssetService.getMyTickets()));
     }
 
