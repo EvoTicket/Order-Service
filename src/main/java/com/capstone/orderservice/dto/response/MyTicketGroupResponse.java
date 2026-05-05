@@ -12,11 +12,11 @@ import java.util.List;
 @NoArgsConstructor
 @AllArgsConstructor
 public class MyTicketGroupResponse {
-    private Long id;
+    private Long orderId;
     private String eventName;
     private String date;
     private String venue;
-    private String orderId;
+    private String orderCode;
     private Integer totalTickets;
     private String summary;
     private String statusSummary;

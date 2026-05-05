@@ -14,7 +14,7 @@ public class MyTicketItemResponse {
     private String ticketName;
     private String ticketType;
     private String seat;
-    private String ticketId;
+    private String ticketCode;
     private String tokenId;
     private String status;
 }

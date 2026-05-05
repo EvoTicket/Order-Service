@@ -87,7 +87,7 @@ public class TicketAssetService {
         return assetsByOrder.entrySet().stream().map(entry -> {
             Long orderId = entry.getKey();
             List<TicketAsset> groupAssets = entry.getValue();
-            TicketAsset firstAsset = groupAssets.get(0);
+            TicketAsset firstAsset = groupAssets.getFirst();
 
             String eventName = firstAsset.getEventName();
             String dateStr = firstAsset.getEventStartTime() != null 
@@ -119,21 +119,21 @@ public class TicketAssetService {
                 }
                 return MyTicketItemResponse.builder()
                         .id(asset.getId())
-                        .ticketName("Vé")
+                        .ticketName(asset.getTicketTypeName())
                         .ticketType(asset.getTicketTypeName())
                         .seat(asset.getTicketTypeName())
-                        .ticketId(asset.getTicketCode())
+                        .ticketCode(asset.getTicketCode())
                         .tokenId(tokenIdStr != null ? tokenIdStr : "")
                         .status(status)
                         .build();
             }).toList();
 
             return MyTicketGroupResponse.builder()
-                    .id(orderId)
+                    .orderId(orderId)
                     .eventName(eventName)
                     .date(dateStr)
                     .venue(venue)
-                    .orderId(firstAsset.getOriginalOrderCode())
+                    .orderCode(firstAsset.getOriginalOrderCode())
                     .totalTickets(groupAssets.size())
                     .summary(summary)
                     .statusSummary(statusSummary)

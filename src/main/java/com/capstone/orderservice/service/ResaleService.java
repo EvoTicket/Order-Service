@@ -62,10 +62,7 @@ public class ResaleService {
     private final OrderRepository orderRepository;
     private final JwtUtil jwtUtil;
     private final PaymentFeignClient paymentFeignClient;
-
-    @org.springframework.beans.factory.annotation.Autowired
-    @org.springframework.context.annotation.Lazy
-    private ResaleService self;
+    
 
     @Transactional(readOnly = true)
     public ResaleQuoteResponse quote(ResaleQuoteRequest request) {
