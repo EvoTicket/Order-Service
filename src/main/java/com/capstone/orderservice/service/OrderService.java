@@ -461,4 +461,30 @@ public class OrderService {
 
         return map;
     }
+
+    public com.capstone.orderservice.dto.response.PlatformStatsResponse getPlatformStats(int days) {
+        BigDecimal totalGmv = orderRepository.getTotalGmvAllTime();
+        long totalTicketsSold = orderRepository.getTotalTicketsSoldAllTime();
+
+        // Giả sử doanh thu phí sàn là 2.5% của GMV (có thể điều chỉnh hoặc tính toán từ ResaleService)
+        BigDecimal totalRevenue = totalGmv.multiply(new BigDecimal("0.025")).setScale(2, RoundingMode.HALF_UP);
+
+        LocalDateTime startDate = LocalDateTime.now().minusDays(days);
+        List<Object[]> dailyResults = orderRepository.getDailyStats(startDate);
+
+        List<com.capstone.orderservice.dto.response.DailyStatsDto> trend = dailyResults.stream()
+                .map(row -> com.capstone.orderservice.dto.response.DailyStatsDto.builder()
+                        .date(((java.sql.Date) row[0]).toLocalDate())
+                        .gmv((BigDecimal) row[1])
+                        .ticketsSold((long) row[2])
+                        .build())
+                .toList();
+
+        return com.capstone.orderservice.dto.response.PlatformStatsResponse.builder()
+                .totalGmv(totalGmv)
+                .totalRevenue(totalRevenue)
+                .totalTicketsSold(totalTicketsSold)
+                .trend(trend)
+                .build();
+    }
 }

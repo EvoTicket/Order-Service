@@ -47,4 +47,10 @@ public class InternalController {
     ){
         return ResponseEntity.ok(orderService.getRevenueMap(eventIds));
     }
+    @GetMapping("/orders/platform-stats")
+    public ResponseEntity<com.capstone.orderservice.dto.response.PlatformStatsResponse> getPlatformStats(
+            @RequestParam(defaultValue = "30") int days
+    ) {
+        return ResponseEntity.ok(orderService.getPlatformStats(days));
+    }
 }
