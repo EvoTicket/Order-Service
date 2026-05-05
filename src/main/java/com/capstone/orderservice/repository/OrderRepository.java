@@ -48,4 +48,11 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
                                             @Param("oneDayAgo") LocalDateTime oneDayAgo,
                                             @Param("twoDaysAgo") LocalDateTime twoDaysAgo);
 
+    @Query("""
+    SELECT o.eventId, COALESCE(SUM(o.finalAmount), 0)
+    FROM Order o
+    WHERE o.eventId IN :eventIds
+    GROUP BY o.eventId
+    """)
+    List<Object[]> getRevenueAllTime(List<Long> eventIds);
 }

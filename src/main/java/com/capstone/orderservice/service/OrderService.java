@@ -35,11 +35,7 @@ import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
-import java.util.Collections;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
-import java.util.UUID;
+import java.util.*;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.stream.Collectors;
 
@@ -446,5 +442,23 @@ public class OrderService {
     @Transactional(readOnly = true)
     public List<Long> getPurchasedEventIdsByUserId(Long userId) {
         return orderRepository.findPurchasedEventIdsByUserId(userId);
+    }
+
+    public Map<Long, BigDecimal> getRevenueMap(List<Long> eventIds) {
+        List<Object[]> results = orderRepository.getRevenueAllTime(eventIds);
+
+        Map<Long, BigDecimal> map = new HashMap<>();
+
+        for (Object[] row : results) {
+            Long eventId = (Long) row[0];
+            BigDecimal revenue = (BigDecimal) row[1];
+            map.put(eventId, revenue);
+        }
+
+        for (Long id : eventIds) {
+            map.putIfAbsent(id, BigDecimal.ZERO);
+        }
+
+        return map;
     }
 }

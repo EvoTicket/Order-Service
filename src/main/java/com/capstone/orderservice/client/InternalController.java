@@ -7,6 +7,8 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 
@@ -37,5 +39,12 @@ public class InternalController {
             @PathVariable Long userId
     ){
         return ResponseEntity.ok(orderService.getPurchasedEventIdsByUserId(userId));
+    }
+
+    @GetMapping("/orders/events/revenue")
+    public ResponseEntity<Map<Long, BigDecimal>> getRevenueForEvent(
+            @RequestParam List<Long> eventIds
+    ){
+        return ResponseEntity.ok(orderService.getRevenueMap(eventIds));
     }
 }
