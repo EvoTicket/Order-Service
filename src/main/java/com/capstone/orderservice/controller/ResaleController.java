@@ -80,14 +80,14 @@ public class ResaleController {
                 resaleService.cancelListing(listingCode)));
     }
 
-    @PostMapping("/listings/{listingCode}/checkout")
-    public ResponseEntity<BaseResponse<ResaleCheckoutResponse>> checkout(
-            @PathVariable String listingCode,
-            @Valid @RequestBody ResaleCheckoutRequest request
-    ) {
-        return ResponseEntity.ok(BaseResponse.created("Resale checkout order created successfully",
-                resaleService.checkout(listingCode, request)));
-    }
+//    @PostMapping("/listings/{listingCode}/checkout")
+//    public ResponseEntity<BaseResponse<ResaleCheckoutResponse>> checkout(
+//            @PathVariable String listingCode,
+//            @Valid @RequestBody ResaleCheckoutRequest request
+//    ) {
+//        return ResponseEntity.ok(BaseResponse.created("Resale checkout order created successfully",
+//                resaleService.checkout(listingCode, request)));
+//    }
 
     @GetMapping("/orders/{orderCode}/payment-status")
     public ResponseEntity<BaseResponse<ResalePaymentStatusResponse>> getPaymentStatus(@PathVariable String orderCode) {
@@ -95,9 +95,9 @@ public class ResaleController {
                 resaleService.getPaymentStatus(orderCode)));
     }
 
-    @PostMapping("/orders/{orderCode}/continue-payment")
-    public ResponseEntity<BaseResponse<ResalePaymentStatusResponse>> continuePayment(@PathVariable String orderCode) {
-        return ResponseEntity.ok(BaseResponse.ok("Resale payment link created successfully",
-                resaleService.continuePayment(orderCode)));
-    }
+//    @PostMapping("/orders/{orderCode}/continue-payment")
+//    public ResponseEntity<BaseResponse<ResalePaymentStatusResponse>> continuePayment(@PathVariable String orderCode) {
+//        return ResponseEntity.ok(BaseResponse.ok("Resale payment link created successfully",
+//                resaleService.continuePayment(orderCode)));
+//    }
 }
