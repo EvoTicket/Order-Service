@@ -22,6 +22,7 @@ import com.capstone.orderservice.security.JwtUtil;
 import com.capstone.orderservice.util.OrderUtil;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -44,6 +45,7 @@ import java.util.stream.Collectors;
 
 @Service
 @Slf4j
+@RequiredArgsConstructor
 public class OrderService {
     private final OrderRepository orderRepository;
     private final VoucherService voucherService;
@@ -56,41 +58,10 @@ public class OrderService {
     private final PaymentFeignClient paymentFeignClient;
     private final TicketAssetService ticketAssetService;
     private final ResaleService resaleService;
-    private final OrderService self;
 
-    public OrderService(OrderRepository orderRepository,
-                        VoucherService voucherService,
-                        OrderUtil orderUtil,
-                        JwtUtil jwtUtil,
-                        InventoryFeignClient inventoryFeignClient,
-                        RedisTemplate<String, Object> redisTemplate,
-                        RedisStreamProducer redisStreamProducer,
-                        ObjectMapper objectMapper,
-                        PaymentFeignClient paymentFeignClient,
-                        TicketAssetService ticketAssetService,
-                        ResaleService resaleService,
-                        @org.springframework.context.annotation.Lazy OrderService self) {
-        this.orderRepository = orderRepository;
-        this.voucherService = voucherService;
-        this.orderUtil = orderUtil;
-        this.jwtUtil = jwtUtil;
-        this.inventoryFeignClient = inventoryFeignClient;
-        this.redisTemplate = redisTemplate;
-        this.redisStreamProducer = redisStreamProducer;
-        this.objectMapper = objectMapper;
-        this.paymentFeignClient = paymentFeignClient;
-        this.self = self;
-        this.ticketAssetService = ticketAssetService;
-        this.resaleService = resaleService;
-    }
-
-    public PaymentLinkResponse createOrder(CreateOrderRequest request) {
-        Order order = self.createOrderInternal(request);
-        return paymentFeignClient.createPaymentLink(order.getOrderCode()).getData();
-    }
 
     @Transactional
-    public Order createOrderInternal(CreateOrderRequest request) {
+    public PaymentLinkResponse createOrder(CreateOrderRequest request) {
         String sessionDataKey = "booking:data:" + request.getBookingSessionId();
         String sessionJson = (String) redisTemplate.opsForValue().get(sessionDataKey);
         if (sessionJson == null) {
@@ -137,13 +108,13 @@ public class OrderService {
                 .bookingSessionId(request.getBookingSessionId())
                 .build();
 
-        ListTicketTypesInternalResponse response = inventoryFeignClient.getTicketTypes(requestItems).getData();
-        if (response == null) {
+        ListTicketTypesInternalResponse listTicketTypesInternalResponse = inventoryFeignClient.getTicketTypes(requestItems).getData();
+        if (listTicketTypesInternalResponse == null) {
             throw new AppException(ErrorCode.INTERNAL_SERVER_ERROR, "Lấy ticket lỗi");
         }
-        order.setEventId(response.getEventId());
+        order.setEventId(listTicketTypesInternalResponse.getEventId());
 
-        for (ListTicketTypesInternalResponse.TicketDetailResponse ticket : response.getTicketDetails()) {
+        for (ListTicketTypesInternalResponse.TicketDetailResponse ticket : listTicketTypesInternalResponse.getTicketDetails()) {
 
             if (ticket == null) {
                 throw new AppException(ErrorCode.RESOURCE_NOT_FOUND, "Ticket không tồn tại");
@@ -169,7 +140,11 @@ public class OrderService {
 
         voucherService.applyVouchers(order, request.getVoucherIds());
 
-        return orderRepository.saveAndFlush(order);
+        orderRepository.save(order);
+
+        OrderInternalResponse requestToPayment = OrderInternalResponse.fromRequest(request, orderCode, totalAmount, listTicketTypesInternalResponse);
+
+        return paymentFeignClient.createPaymentLink(requestToPayment).getData();
     }
 
     @Transactional

@@ -4,10 +4,7 @@ import com.capstone.orderservice.config.FeignClientConfig;
 import com.capstone.orderservice.dto.BaseResponse;
 import com.capstone.orderservice.dto.response.PaymentLinkResponse;
 import org.springframework.cloud.openfeign.FeignClient;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.*;
 
 @FeignClient(
         name = "payment-service",
@@ -21,7 +18,7 @@ public interface PaymentFeignClient {
     @GetMapping("/payment/{orderCode}")
     BaseResponse<PaymentTransactionResponse> getPaymentInfo(@PathVariable String orderCode);
 
-    @PostMapping("/payment/create/{orderCode}")
-    BaseResponse<PaymentLinkResponse> createPaymentLink(@PathVariable String orderCode);
+    @PostMapping("/payment/create")
+    BaseResponse<PaymentLinkResponse> createPaymentLink(@RequestBody OrderInternalResponse order);
 }
 

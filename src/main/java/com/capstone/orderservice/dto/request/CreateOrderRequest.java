@@ -29,5 +29,7 @@ public class CreateOrderRequest {
     @NotEmpty(message = "Booking Session ID không được để trống")
     private String bookingSessionId;
 
+    private String locale = "vi";
+
     private List<Long> voucherIds;
 }

@@ -4,34 +4,40 @@ import com.capstone.orderservice.entity.OrderItem;
 import lombok.*;
 
 import java.math.BigDecimal;
-import java.time.LocalDateTime;
+import java.util.List;
 
 @Data
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
 public class OrderItemInternalResponse {
-    private Long id;
-    private Long ticketTypeId;
     private String ticketTypeName;
     private Long quantity;
-    private BigDecimal unitPrice;
-    private BigDecimal subtotal;
-    private String ticketCode;
-    private String tokenId;
-    private LocalDateTime createdAt;
+    private BigDecimal subTotal;
 
     public static OrderItemInternalResponse fromEntity(OrderItem item) {
+        List<OrderItem> sameTypeItems = item.getOrder().getOrderItems()
+                .stream()
+                .filter(i -> i.getTicketTypeId().equals(item.getTicketTypeId()))
+                .toList();
+
+        long quantity = sameTypeItems.size();
+
+        BigDecimal subTotal = item.getUnitPrice()
+                .multiply(BigDecimal.valueOf(quantity));
+
         return OrderItemInternalResponse.builder()
-                .id(item.getId())
-                .ticketTypeId(item.getTicketTypeId())
                 .ticketTypeName(item.getTicketTypeName())
-                .quantity(1L)
-                .unitPrice(item.getUnitPrice())
-                .subtotal(item.getUnitPrice())
-                .ticketCode(item.getTicketCode())
-                .tokenId(item.getTokenId())
-                .createdAt(item.getCreatedAt())
+                .quantity(quantity)
+                .subTotal(subTotal)
+                .build();
+    }
+
+    public static OrderItemInternalResponse fromlistTicketTypesInternalResponse(ListTicketTypesInternalResponse.TicketDetailResponse ticketDetailResponse) {
+        return OrderItemInternalResponse.builder()
+                .ticketTypeName(ticketDetailResponse.getTicketTypeName())
+                .quantity(ticketDetailResponse.getQuantity())
+                .subTotal(ticketDetailResponse.getPrice().multiply(BigDecimal.valueOf(ticketDetailResponse.getQuantity())))
                 .build();
     }
 }

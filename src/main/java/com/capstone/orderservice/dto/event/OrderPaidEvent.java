@@ -1,6 +1,5 @@
 package com.capstone.orderservice.dto.event;
 
-import com.capstone.orderservice.client.OrderItemInternalResponse;
 import com.capstone.orderservice.dto.request.OrderItemRequest;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
