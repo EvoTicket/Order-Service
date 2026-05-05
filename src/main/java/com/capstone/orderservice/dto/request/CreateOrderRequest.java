@@ -2,8 +2,9 @@ package com.capstone.orderservice.dto.request;
 
 import com.capstone.orderservice.enums.PaymentMethod;
 import io.swagger.v3.oas.annotations.media.Schema;
-import jakarta.validation.Valid;
+import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotEmpty;
+import jakarta.validation.constraints.Pattern;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -23,12 +24,14 @@ public class CreateOrderRequest {
     @Schema(example = "phong.nguyencsk22@hcmut.edu.vn")
     private String email;
 
-    @Schema(example = "PAYOS")
+    @Schema(example = "SEPAY")
     private PaymentMethod paymentMethod;
 
     @NotEmpty(message = "Booking Session ID không được để trống")
     private String bookingSessionId;
 
+    @NotBlank
+    @Pattern(regexp = "^[a-z]{2}$")
     private String locale = "vi";
 
     private List<Long> voucherIds;

@@ -143,6 +143,7 @@ public class OrderService {
         orderRepository.save(order);
 
         OrderInternalResponse requestToPayment = OrderInternalResponse.fromRequest(request, orderCode, totalAmount, listTicketTypesInternalResponse);
+        log.info("locale : {}", requestToPayment.getLocale());
 
         return paymentFeignClient.createPaymentLink(requestToPayment).getData();
     }
