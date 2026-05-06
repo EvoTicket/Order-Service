@@ -7,9 +7,7 @@ import com.capstone.orderservice.dto.event.PaymentSuccessEvent;
 import com.capstone.orderservice.dto.request.BookingSessionData;
 import com.capstone.orderservice.dto.request.CreateOrderRequest;
 import com.capstone.orderservice.dto.request.OrderItemRequest;
-import com.capstone.orderservice.dto.response.EventVolumeDto;
-import com.capstone.orderservice.dto.response.OrderResponse;
-import com.capstone.orderservice.dto.response.PaymentLinkResponse;
+import com.capstone.orderservice.dto.response.*;
 import com.capstone.orderservice.entity.Order;
 import com.capstone.orderservice.entity.OrderItem;
 import com.capstone.orderservice.enums.OrderStatus;
@@ -29,6 +27,8 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.web.client.RestClient;
 
 import java.math.BigDecimal;
@@ -175,32 +175,38 @@ public class OrderService {
                         .orElse(null))
                 .getData();
 
-        try {
-            RestClient restClient = RestClient.create("http://web3-worker-service:4500");
-            
-            List<Map<String, Object>> ticketsPayload = order.getOrderItems().stream().map(item -> {
-                Map<String, Object> ticketInfo = new HashMap<>();
-                ticketInfo.put("ticketCode", item.getTicketCode());
-                ticketInfo.put("regularPrice", item.getUnitPrice());
-                String eventName = event != null && event.getEventName() != null ? event.getEventName() : "Unknown Event";
-                ticketInfo.put("eventInfo", eventName + " - " + item.getTicketTypeName());
-                return ticketInfo;
-            }).toList();
+        List<Map<String, Object>> ticketsPayload = order.getOrderItems().stream().map(item -> {
+            Map<String, Object> ticketInfo = new HashMap<>();
+            ticketInfo.put("ticketCode", item.getTicketCode());
+            ticketInfo.put("regularPrice", item.getUnitPrice());
+            String eventName = event != null && event.getEventName() != null ? event.getEventName() : "Unknown Event";
+            ticketInfo.put("eventInfo", eventName + " - " + item.getTicketTypeName());
+            return ticketInfo;
+        }).toList();
 
-            Map<String, Object> payload = new HashMap<>();
-            payload.put("userId", String.valueOf(order.getUserId()));
-            payload.put("orderId", order.getOrderCode());
-            payload.put("tickets", ticketsPayload);
+        Map<String, Object> payload = new HashMap<>();
+        payload.put("userId", String.valueOf(order.getUserId()));
+        payload.put("orderId", order.getOrderCode());
+        payload.put("tickets", ticketsPayload);
 
-            restClient.post()
-                    .uri("/api/blockchain/mint-order")
-                    .body(payload)
-                    .retrieve()
-                    .toBodilessEntity();
-            log.info("Successfully sent mint-order request to web3-worker-service for order {}", order.getOrderCode());
-        } catch (Exception e) {
-            log.error("Failed to call web3-worker-service for minting order {}", order.getOrderCode(), e);
-        }
+        TransactionSynchronizationManager.registerSynchronization(
+            new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    try {
+                        RestClient restClient = RestClient.create("http://web3-worker-service:4500");
+                        restClient.post()
+                                .uri("/api/blockchain/mint-order")
+                                .body(payload)
+                                .retrieve()
+                                .toBodilessEntity();
+                        log.info("Successfully sent mint-order request to web3-worker-service for order {}", order.getOrderCode());
+                    } catch (Exception e) {
+                        log.error("Failed to call web3-worker-service for minting order {}", order.getOrderCode(), e);
+                    }
+                }
+            }
+        );
 
         DateTimeFormatter dateFormatter = DateTimeFormatter.ofPattern("EEEE, dd/MM/yyyy", Locale.forLanguageTag("vi"));
         DateTimeFormatter timeFormatter = DateTimeFormatter.ofPattern("HH:mm");
@@ -487,7 +493,7 @@ public class OrderService {
         return map;
     }
 
-    public com.capstone.orderservice.dto.response.PlatformStatsResponse getPlatformStats(int days) {
+    public PlatformStatsResponse getPlatformStats(int days) {
         BigDecimal totalGmv = orderRepository.getTotalGmvAllTime();
         long totalTicketsSold = orderRepository.getTotalTicketsSoldAllTime();
 
@@ -498,15 +504,15 @@ public class OrderService {
         LocalDateTime startDate = LocalDateTime.now().minusDays(days);
         List<Object[]> dailyResults = orderRepository.getDailyStats(startDate);
 
-        List<com.capstone.orderservice.dto.response.DailyStatsDto> trend = dailyResults.stream()
-                .map(row -> com.capstone.orderservice.dto.response.DailyStatsDto.builder()
+        List<DailyStatsDto> trend = dailyResults.stream()
+                .map(row -> DailyStatsDto.builder()
                         .date(((java.sql.Date) row[0]).toLocalDate())
                         .gmv((BigDecimal) row[1])
                         .ticketsSold((long) row[2])
                         .build())
                 .toList();
 
-        return com.capstone.orderservice.dto.response.PlatformStatsResponse.builder()
+        return PlatformStatsResponse.builder()
                 .totalGmv(totalGmv)
                 .totalRevenue(totalRevenue)
                 .totalTicketsSold(totalTicketsSold)

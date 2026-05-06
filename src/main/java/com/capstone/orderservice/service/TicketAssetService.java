@@ -6,6 +6,7 @@ import com.capstone.orderservice.dto.response.MyTicketGroupResponse;
 import com.capstone.orderservice.dto.response.MyTicketItemResponse;
 import com.capstone.orderservice.dto.response.ResaleEligibilityResponse;
 import com.capstone.orderservice.dto.response.TicketAssetResponse;
+import com.capstone.orderservice.dto.request.Web3MintWebhookRequest;
 import com.capstone.orderservice.entity.Order;
 import com.capstone.orderservice.entity.OrderItem;
 import com.capstone.orderservice.entity.TicketAsset;
@@ -329,5 +330,33 @@ public class TicketAssetService {
     }
 
     private record EligibilityDecision(boolean canResell, String reasonCode, String reasonMessage) {
+    }
+
+    @Transactional
+    public void handleWeb3MintWebhook(Web3MintWebhookRequest request) {
+        if (request.getData() == null || request.getData().getTicketCode() == null) {
+            log.warn("Web3 mint webhook received without ticketCode. JobId: {}", request.getJobId());
+            return;
+        }
+
+        String ticketCode = request.getData().getTicketCode();
+        TicketAsset asset = ticketAssetRepository.findByTicketCodeOrAssetCode(ticketCode, ticketCode)
+                .orElseThrow(() -> new AppException(ErrorCode.RESOURCE_NOT_FOUND, "Ticket not found for code: " + ticketCode));
+
+        if ("success".equals(request.getStatus())) {
+            asset.setChainStatus(TicketChainStatus.MINTED);
+            asset.setTxHash(request.getTxHash());
+            asset.setTokenId(request.getData().getTokenId());
+            if (request.getData().getChainCommand() != null) {
+                asset.setToWallet(request.getData().getChainCommand().getToWallet());
+                asset.setMetadataUri(request.getData().getChainCommand().getMetadataURI());
+            }
+            log.info("Successfully updated web3 mint info for ticket: {}. TxHash: {}", ticketCode, request.getTxHash());
+        } else {
+            asset.setChainStatus(TicketChainStatus.MINT_FAILED);
+            log.error("Web3 mint failed for ticket: {}. Error: {}", ticketCode, request.getError());
+        }
+
+        ticketAssetRepository.save(asset);
     }
 }

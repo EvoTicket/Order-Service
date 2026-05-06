@@ -98,6 +98,12 @@ public class TicketAsset {
     @Column(name = "contract_address")
     private String contractAddress;
 
+    @Column(name = "to_wallet")
+    private String toWallet;
+
+    @Column(name = "metadata_uri")
+    private String metadataUri;
+
     @Column(name = "qr_secret_hash")
     private String qrSecretHash;
 
