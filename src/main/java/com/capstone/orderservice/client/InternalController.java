@@ -38,4 +38,11 @@ public class InternalController {
     ){
         return ResponseEntity.ok(orderService.getPurchasedEventIdsByUserId(userId));
     }
+
+    @GetMapping("/orders/platform-stats")
+    public ResponseEntity<Map<String, Object>> getPlatformStats(
+            @RequestParam(defaultValue = "7") int days
+    ) {
+        return ResponseEntity.ok(orderService.getPlatformStats(days));
+    }
 }

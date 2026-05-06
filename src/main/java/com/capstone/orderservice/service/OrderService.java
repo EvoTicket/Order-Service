@@ -447,4 +447,26 @@ public class OrderService {
     public List<Long> getPurchasedEventIdsByUserId(Long userId) {
         return orderRepository.findPurchasedEventIdsByUserId(userId);
     }
+
+    @Transactional(readOnly = true)
+    public Map<String, Object> getPlatformStats(int days) {
+        LocalDateTime startDate = LocalDateTime.now().minusDays(days);
+        
+        List<Object[]> result = orderRepository.getPlatformStats(startDate);
+        
+        Map<String, Object> stats = new java.util.HashMap<>();
+        
+        if (result != null && !result.isEmpty() && result.get(0) != null) {
+            Object[] row = result.get(0);
+            stats.put("totalOrders", row.length > 0 && row[0] != null ? row[0] : 0L);
+            stats.put("revenue", row.length > 1 && row[1] != null ? row[1] : BigDecimal.ZERO);
+            stats.put("totalTickets", row.length > 2 && row[2] != null ? row[2] : 0L);
+        } else {
+            stats.put("totalOrders", 0L);
+            stats.put("revenue", BigDecimal.ZERO);
+            stats.put("totalTickets", 0L);
+        }
+        
+        return stats;
+    }
 }

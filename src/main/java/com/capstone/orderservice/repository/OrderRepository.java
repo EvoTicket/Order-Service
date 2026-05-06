@@ -48,4 +48,9 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
                                             @Param("oneDayAgo") LocalDateTime oneDayAgo,
                                             @Param("twoDaysAgo") LocalDateTime twoDaysAgo);
 
+    @Query("SELECT COUNT(DISTINCT o.id), COALESCE(SUM(o.finalAmount), 0), COUNT(oi.id) " +
+           "FROM Order o JOIN o.orderItems oi " +
+           "WHERE o.orderStatus = 'CONFIRMED' AND o.createdAt >= :startDate")
+    List<Object[]> getPlatformStats(@Param("startDate") LocalDateTime startDate);
+
 }
