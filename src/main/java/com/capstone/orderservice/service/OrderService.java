@@ -35,11 +35,7 @@ import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
-import java.util.Collections;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
-import java.util.UUID;
+import java.util.*;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.stream.Collectors;
 
@@ -58,7 +54,6 @@ public class OrderService {
     private final PaymentFeignClient paymentFeignClient;
     private final TicketAssetService ticketAssetService;
     private final ResaleService resaleService;
-
 
     @Transactional
     public PaymentLinkResponse createOrder(CreateOrderRequest request) {
@@ -108,13 +103,15 @@ public class OrderService {
                 .bookingSessionId(request.getBookingSessionId())
                 .build();
 
-        ListTicketTypesInternalResponse listTicketTypesInternalResponse = inventoryFeignClient.getTicketTypes(requestItems).getData();
+        ListTicketTypesInternalResponse listTicketTypesInternalResponse = inventoryFeignClient
+                .getTicketTypes(requestItems).getData();
         if (listTicketTypesInternalResponse == null) {
             throw new AppException(ErrorCode.INTERNAL_SERVER_ERROR, "Lấy ticket lỗi");
         }
         order.setEventId(listTicketTypesInternalResponse.getEventId());
 
-        for (ListTicketTypesInternalResponse.TicketDetailResponse ticket : listTicketTypesInternalResponse.getTicketDetails()) {
+        for (ListTicketTypesInternalResponse.TicketDetailResponse ticket : listTicketTypesInternalResponse
+                .getTicketDetails()) {
 
             if (ticket == null) {
                 throw new AppException(ErrorCode.RESOURCE_NOT_FOUND, "Ticket không tồn tại");
@@ -142,7 +139,8 @@ public class OrderService {
 
         orderRepository.save(order);
 
-        OrderInternalResponse requestToPayment = OrderInternalResponse.fromRequest(request, orderCode, totalAmount, listTicketTypesInternalResponse);
+        OrderInternalResponse requestToPayment = OrderInternalResponse.fromRequest(request, orderCode, totalAmount,
+                listTicketTypesInternalResponse);
         log.info("locale : {}", requestToPayment.getLocale());
 
         return paymentFeignClient.createPaymentLink(requestToPayment).getData();
@@ -171,10 +169,10 @@ public class OrderService {
         PaymentTransactionResponse payment = paymentFeignClient.getPaymentInfo(order.getOrderCode()).getData();
         EventDetailInternalResponse event = inventoryFeignClient.getEventDetailsByTicketTypeId(
                 order.getOrderItems().stream()
-                .findFirst()
-                .map(OrderItem::getTicketTypeId)
-                .orElse(null)
-        ).getData();
+                        .findFirst()
+                        .map(OrderItem::getTicketTypeId)
+                        .orElse(null))
+                .getData();
         DateTimeFormatter dateFormatter = DateTimeFormatter.ofPattern("EEEE, dd/MM/yyyy", Locale.forLanguageTag("vi"));
         DateTimeFormatter timeFormatter = DateTimeFormatter.ofPattern("HH:mm");
 
@@ -213,15 +211,16 @@ public class OrderService {
                 .discountCode(
                         order.getOrderVouchers().stream()
                                 .map(item -> item.getVoucher().getVoucherCode())
-                                .collect(Collectors.joining(", "))
-                )
+                                .collect(Collectors.joining(", ")))
                 .discountAmount(order.getDiscountAmount())
                 .ticketDownloadUrl("https://evoticket.vn/tickets/" + order.getOrderCode())
                 .eventName(event.getEventName())
                 .eventDate(event.getEventStartTime() != null
-                        ? event.getEventStartTime().format(dateFormatter) : "")
+                        ? event.getEventStartTime().format(dateFormatter)
+                        : "")
                 .eventTime(event.getEventStartTime() != null
-                        ? event.getEventStartTime().format(timeFormatter) + " - " + event.getEventEndTime().format(timeFormatter)
+                        ? event.getEventStartTime().format(timeFormatter) + " - "
+                                + event.getEventEndTime().format(timeFormatter)
                         : "")
                 .eventLocation(event.getVenue())
                 .eventAddress(event.getAddress() != null ? event.getAddress() : "")
@@ -262,7 +261,8 @@ public class OrderService {
             return;
         }
 
-        if (order.getOrderStatus() != OrderStatus.PENDING) return;
+        if (order.getOrderStatus() != OrderStatus.PENDING)
+            return;
 
         order.setOrderStatus(OrderStatus.PAYMENT_FAILED);
 
@@ -273,8 +273,7 @@ public class OrderService {
                 .map(entry -> OrderItemRequest.builder()
                         .ticketTypeId(entry.getKey())
                         .quantity(entry.getValue().size())
-                        .build()
-                )
+                        .build())
                 .toList();
 
         inventoryFeignClient.releaseTickets(items);
@@ -286,7 +285,7 @@ public class OrderService {
     }
 
     @Transactional
-    public void commitTicket(PaymentSuccessEvent paymentSuccessEvent){
+    public void commitTicket(PaymentSuccessEvent paymentSuccessEvent) {
         Order order = orderUtil.getOrderByOrderCode(paymentSuccessEvent.getOrderCode());
         OrderType orderType = order.getOrderType() != null ? order.getOrderType() : OrderType.PRIMARY;
 
@@ -302,8 +301,7 @@ public class OrderService {
                 .map(entry -> OrderItemRequest.builder()
                         .ticketTypeId(entry.getKey())
                         .quantity(entry.getValue().size())
-                        .build()
-                )
+                        .build())
                 .toList();
         OrderPaidEvent orderPaidEvent = OrderPaidEvent.builder()
                 .orderCode(order.getOrderCode())
@@ -318,7 +316,6 @@ public class OrderService {
         Order order = orderUtil.getOrderById(id);
         return OrderResponse.fromEntity(order);
     }
-
 
     @Transactional(readOnly = true)
     public Page<OrderResponse> getOrdersByUserId(Pageable pageable) {
@@ -339,7 +336,6 @@ public class OrderService {
                 .map(OrderResponse::fromEntity);
     }
 
-
     @Transactional
     public void cancelOrder(String orderCode) {
         Order order = orderUtil.getOrderByOrderCode(orderCode);
@@ -353,8 +349,7 @@ public class OrderService {
         if (!order.getOrderStatus().canBeCancelled()) {
             throw new AppException(
                     ErrorCode.BAD_REQUEST,
-                    "Không thể hủy đơn ở trạng thái " + order.getOrderStatus()
-            );
+                    "Không thể hủy đơn ở trạng thái " + order.getOrderStatus());
         }
 
         List<OrderItemRequest> items = order.getOrderItems()
@@ -364,17 +359,14 @@ public class OrderService {
                 .map(entry -> OrderItemRequest.builder()
                         .ticketTypeId(entry.getKey())
                         .quantity(entry.getValue().size())
-                        .build()
-                )
+                        .build())
                 .toList();
 
         boolean releaseSuccess = Boolean.TRUE.equals(
-                inventoryFeignClient.releaseTickets(items).getData()
-        );
+                inventoryFeignClient.releaseTickets(items).getData());
 
         boolean cancelSuccess = Boolean.TRUE.equals(
-                paymentFeignClient.cancelPayment(order.getOrderCode()).getData()
-        );
+                paymentFeignClient.cancelPayment(order.getOrderCode()).getData());
 
         if (!releaseSuccess || !cancelSuccess) {
             throw new AppException(ErrorCode.INTERNAL_SERVER_ERROR, "Huỷ đơn thất bại ở inventory hoặc payment");
@@ -448,25 +440,48 @@ public class OrderService {
         return orderRepository.findPurchasedEventIdsByUserId(userId);
     }
 
-    @Transactional(readOnly = true)
-    public Map<String, Object> getPlatformStats(int days) {
-        LocalDateTime startDate = LocalDateTime.now().minusDays(days);
-        
-        List<Object[]> result = orderRepository.getPlatformStats(startDate);
-        
-        Map<String, Object> stats = new java.util.HashMap<>();
-        
-        if (result != null && !result.isEmpty() && result.get(0) != null) {
-            Object[] row = result.get(0);
-            stats.put("totalOrders", row.length > 0 && row[0] != null ? row[0] : 0L);
-            stats.put("revenue", row.length > 1 && row[1] != null ? row[1] : BigDecimal.ZERO);
-            stats.put("totalTickets", row.length > 2 && row[2] != null ? row[2] : 0L);
-        } else {
-            stats.put("totalOrders", 0L);
-            stats.put("revenue", BigDecimal.ZERO);
-            stats.put("totalTickets", 0L);
+    public Map<Long, BigDecimal> getRevenueMap(List<Long> eventIds) {
+        List<Object[]> results = orderRepository.getRevenueAllTime(eventIds);
+
+        Map<Long, BigDecimal> map = new HashMap<>();
+
+        for (Object[] row : results) {
+            Long eventId = (Long) row[0];
+            BigDecimal revenue = (BigDecimal) row[1];
+            map.put(eventId, revenue);
         }
-        
-        return stats;
+
+        for (Long id : eventIds) {
+            map.putIfAbsent(id, BigDecimal.ZERO);
+        }
+
+        return map;
+    }
+
+    public com.capstone.orderservice.dto.response.PlatformStatsResponse getPlatformStats(int days) {
+        BigDecimal totalGmv = orderRepository.getTotalGmvAllTime();
+        long totalTicketsSold = orderRepository.getTotalTicketsSoldAllTime();
+
+        // Giả sử doanh thu phí sàn là 2.5% của GMV (có thể điều chỉnh hoặc tính toán từ
+        // ResaleService)
+        BigDecimal totalRevenue = totalGmv.multiply(new BigDecimal("0.025")).setScale(2, RoundingMode.HALF_UP);
+
+        LocalDateTime startDate = LocalDateTime.now().minusDays(days);
+        List<Object[]> dailyResults = orderRepository.getDailyStats(startDate);
+
+        List<com.capstone.orderservice.dto.response.DailyStatsDto> trend = dailyResults.stream()
+                .map(row -> com.capstone.orderservice.dto.response.DailyStatsDto.builder()
+                        .date(((java.sql.Date) row[0]).toLocalDate())
+                        .gmv((BigDecimal) row[1])
+                        .ticketsSold((long) row[2])
+                        .build())
+                .toList();
+
+        return com.capstone.orderservice.dto.response.PlatformStatsResponse.builder()
+                .totalGmv(totalGmv)
+                .totalRevenue(totalRevenue)
+                .totalTicketsSold(totalTicketsSold)
+                .trend(trend)
+                .build();
     }
 }

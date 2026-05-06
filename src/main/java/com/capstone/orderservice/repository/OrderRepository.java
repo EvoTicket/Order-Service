@@ -45,12 +45,32 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
             "WHERE o.eventId IN :eventIds AND o.orderStatus = 'CONFIRMED' AND o.createdAt >= :twoDaysAgo " +
             "GROUP BY o.eventId")
     List<Object[]> calculateVolumeForEvents(@Param("eventIds") List<Long> eventIds,
-                                            @Param("oneDayAgo") LocalDateTime oneDayAgo,
-                                            @Param("twoDaysAgo") LocalDateTime twoDaysAgo);
+            @Param("oneDayAgo") LocalDateTime oneDayAgo,
+            @Param("twoDaysAgo") LocalDateTime twoDaysAgo);
+
+    @Query("""
+            SELECT o.eventId, COALESCE(SUM(o.finalAmount), 0)
+            FROM Order o
+            WHERE o.eventId IN :eventIds
+            GROUP BY o.eventId
+            """)
+    List<Object[]> getRevenueAllTime(List<Long> eventIds);
+
+    @Query("SELECT COALESCE(SUM(o.finalAmount), 0) FROM Order o WHERE o.orderStatus = 'CONFIRMED'")
+    java.math.BigDecimal getTotalGmvAllTime();
+
+    @Query("SELECT COUNT(oi.id) FROM OrderItem oi JOIN oi.order o WHERE o.orderStatus = 'CONFIRMED'")
+    long getTotalTicketsSoldAllTime();
+
+    @Query("SELECT CAST(o.createdAt AS date) as d, SUM(o.finalAmount), COUNT(oi.id) " +
+            "FROM Order o JOIN o.orderItems oi " +
+            "WHERE o.orderStatus = 'CONFIRMED' AND o.createdAt >= :startDate " +
+            "GROUP BY CAST(o.createdAt AS date) " +
+            "ORDER BY CAST(o.createdAt AS date) ASC")
+    List<Object[]> getDailyStats(@Param("startDate") java.time.LocalDateTime startDate);
 
     @Query("SELECT COUNT(DISTINCT o.id), COALESCE(SUM(o.finalAmount), 0), COUNT(oi.id) " +
-           "FROM Order o JOIN o.orderItems oi " +
-           "WHERE o.orderStatus = 'CONFIRMED' AND o.createdAt >= :startDate")
+            "FROM Order o JOIN o.orderItems oi " +
+            "WHERE o.orderStatus = 'CONFIRMED' AND o.createdAt >= :startDate")
     List<Object[]> getPlatformStats(@Param("startDate") LocalDateTime startDate);
-
 }
