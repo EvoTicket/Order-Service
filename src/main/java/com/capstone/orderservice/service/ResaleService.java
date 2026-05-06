@@ -7,7 +7,6 @@ import com.capstone.orderservice.dto.request.CreateResaleListingRequest;
 import com.capstone.orderservice.dto.request.ResaleCheckoutRequest;
 import com.capstone.orderservice.dto.request.ResaleQuoteRequest;
 import com.capstone.orderservice.dto.event.PaymentSuccessEvent;
-import com.capstone.orderservice.dto.response.PaymentLinkResponse;
 import com.capstone.orderservice.dto.response.ResaleCheckoutResponse;
 import com.capstone.orderservice.dto.response.ResaleListingResponse;
 import com.capstone.orderservice.dto.response.ResalePaymentStatusResponse;
@@ -194,24 +193,7 @@ public class ResaleService {
         return ResaleListingResponse.fromEntity(listing);
     }
 
-//    public ResaleCheckoutResponse checkout(String listingCode, ResaleCheckoutRequest request) {
-//        ResaleService transactionalService = self != null ? self : this;
-//        ResaleCheckoutResponse response = transactionalService.createResaleCheckout(listingCode, request);
-//
-//        try {
-//            PaymentLinkResponse paymentLink = createPaymentLinkOrThrow(response.getOrderCode());
-//            response.setRedirectUrl(paymentLink.getRedirectUrl());
-//            return response;
-//        } catch (Exception e) {
-//            try {
-//                transactionalService.restoreFailedPaymentInitialization(response.getOrderCode());
-//            } catch (Exception restoreException) {
-//                log.error("Failed to restore resale checkout after payment initialization failure for order {}",
-//                        response.getOrderCode(), restoreException);
-//            }
-//            throw new AppException(ErrorCode.PAYMENT_GATEWAY_ERROR, "Unable to initialize resale payment", e);
-//        }
-//    }
+
 
     @Transactional
     public ResaleCheckoutResponse createResaleCheckout(String listingCode, ResaleCheckoutRequest request) {
@@ -302,19 +284,6 @@ public class ResaleService {
                 && paymentTransactionExists(order.getOrderCode());
         return buildPaymentStatusResponse(order, listing, asset, null, hasPaymentTransaction);
     }
-
-//    public ResalePaymentStatusResponse continuePayment(String orderCode) {
-//        ResaleService transactionalService = self != null ? self : this;
-//        ResalePaymentStatusResponse response = transactionalService.validateContinuePayment(orderCode);
-//
-//        try {
-//            PaymentLinkResponse paymentLink = createPaymentLinkOrThrow(orderCode);
-//            response.setRedirectUrl(paymentLink.getRedirectUrl());
-//            return response;
-//        } catch (Exception e) {
-//            throw new AppException(ErrorCode.PAYMENT_GATEWAY_ERROR, "Unable to initialize resale payment", e);
-//        }
-//    }
 
     @Transactional
     public ResalePaymentStatusResponse validateContinuePayment(String orderCode) {
@@ -538,16 +507,6 @@ public class ResaleService {
         ticketProvenanceService.recordQrRotated(asset, listing, order, sellerId, buyerId, oldQrVersion, newQrVersion);
     }
 
-//    private PaymentLinkResponse createPaymentLinkOrThrow(String orderCode) {
-//        BaseResponse<PaymentLinkResponse> response = paymentFeignClient.createPaymentLink(orderCode);
-//        PaymentLinkResponse paymentLink = response != null ? response.getData() : null;
-//        if (paymentLink == null
-//                || paymentLink.getRedirectUrl() == null
-//                || paymentLink.getRedirectUrl().isBlank()) {
-//            throw new AppException(ErrorCode.PAYMENT_GATEWAY_ERROR, "Unable to initialize resale payment");
-//        }
-//        return paymentLink;
-//    }
 
     private void ensureResaleOrder(Order order) {
         OrderType orderType = order.getOrderType() != null ? order.getOrderType() : OrderType.PRIMARY;

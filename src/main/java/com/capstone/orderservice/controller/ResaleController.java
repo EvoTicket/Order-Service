@@ -9,6 +9,7 @@ import com.capstone.orderservice.dto.response.ResaleCheckoutResponse;
 import com.capstone.orderservice.dto.response.ResaleListingResponse;
 import com.capstone.orderservice.dto.response.ResalePaymentStatusResponse;
 import com.capstone.orderservice.dto.response.ResaleQuoteResponse;
+import com.capstone.orderservice.service.ResaleCheckoutFacade;
 import com.capstone.orderservice.service.ResaleService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -32,6 +33,7 @@ import java.math.BigDecimal;
 @RequiredArgsConstructor
 public class ResaleController {
     private final ResaleService resaleService;
+    private final ResaleCheckoutFacade resaleCheckoutFacade;
 
     @PostMapping("/quote")
     public ResponseEntity<BaseResponse<ResaleQuoteResponse>> quote(@Valid @RequestBody ResaleQuoteRequest request) {
@@ -80,14 +82,14 @@ public class ResaleController {
                 resaleService.cancelListing(listingCode)));
     }
 
-//    @PostMapping("/listings/{listingCode}/checkout")
-//    public ResponseEntity<BaseResponse<ResaleCheckoutResponse>> checkout(
-//            @PathVariable String listingCode,
-//            @Valid @RequestBody ResaleCheckoutRequest request
-//    ) {
-//        return ResponseEntity.ok(BaseResponse.created("Resale checkout order created successfully",
-//                resaleService.checkout(listingCode, request)));
-//    }
+    @PostMapping("/listings/{listingCode}/checkout")
+    public ResponseEntity<BaseResponse<ResaleCheckoutResponse>> checkout(
+            @PathVariable String listingCode,
+            @Valid @RequestBody ResaleCheckoutRequest request
+    ) {
+        return ResponseEntity.ok(BaseResponse.created("Resale checkout order created successfully",
+                resaleCheckoutFacade.checkout(listingCode, request)));
+    }
 
     @GetMapping("/orders/{orderCode}/payment-status")
     public ResponseEntity<BaseResponse<ResalePaymentStatusResponse>> getPaymentStatus(@PathVariable String orderCode) {
@@ -95,9 +97,9 @@ public class ResaleController {
                 resaleService.getPaymentStatus(orderCode)));
     }
 
-//    @PostMapping("/orders/{orderCode}/continue-payment")
-//    public ResponseEntity<BaseResponse<ResalePaymentStatusResponse>> continuePayment(@PathVariable String orderCode) {
-//        return ResponseEntity.ok(BaseResponse.ok("Resale payment link created successfully",
-//                resaleService.continuePayment(orderCode)));
-//    }
+    @PostMapping("/orders/{orderCode}/continue-payment")
+    public ResponseEntity<BaseResponse<ResalePaymentStatusResponse>> continuePayment(@PathVariable String orderCode) {
+        return ResponseEntity.ok(BaseResponse.ok("Resale payment link created successfully",
+                resaleCheckoutFacade.continuePayment(orderCode)));
+    }
 }
