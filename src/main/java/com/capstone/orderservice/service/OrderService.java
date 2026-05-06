@@ -29,6 +29,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.client.RestClient;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
@@ -173,6 +174,34 @@ public class OrderService {
                         .map(OrderItem::getTicketTypeId)
                         .orElse(null))
                 .getData();
+
+        try {
+            RestClient restClient = RestClient.create("http://web3-worker-service:4500");
+            
+            List<Map<String, Object>> ticketsPayload = order.getOrderItems().stream().map(item -> {
+                Map<String, Object> ticketInfo = new HashMap<>();
+                ticketInfo.put("ticketCode", item.getTicketCode());
+                ticketInfo.put("regularPrice", item.getUnitPrice());
+                String eventName = event != null && event.getEventName() != null ? event.getEventName() : "Unknown Event";
+                ticketInfo.put("eventInfo", eventName + " - " + item.getTicketTypeName());
+                return ticketInfo;
+            }).toList();
+
+            Map<String, Object> payload = new HashMap<>();
+            payload.put("userId", String.valueOf(order.getUserId()));
+            payload.put("orderId", order.getOrderCode());
+            payload.put("tickets", ticketsPayload);
+
+            restClient.post()
+                    .uri("/api/blockchain/mint-order")
+                    .body(payload)
+                    .retrieve()
+                    .toBodilessEntity();
+            log.info("Successfully sent mint-order request to web3-worker-service for order {}", order.getOrderCode());
+        } catch (Exception e) {
+            log.error("Failed to call web3-worker-service for minting order {}", order.getOrderCode(), e);
+        }
+
         DateTimeFormatter dateFormatter = DateTimeFormatter.ofPattern("EEEE, dd/MM/yyyy", Locale.forLanguageTag("vi"));
         DateTimeFormatter timeFormatter = DateTimeFormatter.ofPattern("HH:mm");
 
