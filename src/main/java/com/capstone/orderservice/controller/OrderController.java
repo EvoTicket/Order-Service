@@ -16,13 +16,17 @@ import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 
 @RestController
 @RequestMapping("/api/v1/orders")
 @RequiredArgsConstructor
+@Tag(name = "Quản lý Đơn hàng", description = "Các endpoint để tạo, quản lý và tra cứu đơn hàng")
 public class OrderController {
     private final OrderService orderService;
 
+    @Operation(summary = "Tạo đơn hàng mới", description = "Tạo một đơn hàng mới cho vé sự kiện và trả về link thanh toán.")
     @PostMapping
     public ResponseEntity<BaseResponse<PaymentLinkResponse>> createOrder(
             @Valid @RequestBody CreateOrderRequest request) {
@@ -32,6 +36,7 @@ public class OrderController {
                 .body(BaseResponse.created("Tạo đơn hàng thành công", response));
     }
 
+    @Operation(summary = "Lấy thông tin đơn hàng theo ID", description = "Trả về thông tin chi tiết của một đơn hàng cụ thể dựa trên ID.")
     @GetMapping("/{orderId}")
     public ResponseEntity<BaseResponse<OrderResponse>> getOrderById(
             @PathVariable Long orderId) {
@@ -39,6 +44,7 @@ public class OrderController {
         return ResponseEntity.ok(BaseResponse.ok("Lấy thông tin đơn hàng thành công", response));
     }
 
+    @Operation(summary = "Lấy đơn hàng của người dùng hiện tại", description = "Trả về danh sách các đơn hàng đã mua bởi người dùng đang đăng nhập.")
     @GetMapping("/user/{userId}")
     public ResponseEntity<BaseResponse<BasePageResponse<OrderResponse>>> getOrdersByUserId(
             @PathVariable Long userId,
@@ -58,6 +64,7 @@ public class OrderController {
         return ResponseEntity.ok(BaseResponse.ok("Lấy danh sách đơn hàng thành công", pageResponse));
     }
 
+    @Operation(summary = "Lấy tất cả đơn hàng (Admin)", description = "Trả về danh sách tất cả các đơn hàng trong hệ thống (phân trang).")
     @GetMapping
     public ResponseEntity<BaseResponse<BasePageResponse<OrderResponse>>> getAllOrders(
             @RequestParam(defaultValue = "0") int page,
@@ -76,6 +83,7 @@ public class OrderController {
         return ResponseEntity.ok(BaseResponse.ok("Lấy danh sách đơn hàng thành công", pageResponse));
     }
 
+    @Operation(summary = "Lấy đơn hàng theo trạng thái", description = "Trả về danh sách các đơn hàng lọc theo trạng thái (PENDING, CONFIRMED, v.v.).")
     @GetMapping("/status")
     public ResponseEntity<BaseResponse<BasePageResponse<OrderResponse>>> getOrdersByStatus(
             @RequestParam OrderStatus status,
@@ -89,6 +97,7 @@ public class OrderController {
         return ResponseEntity.ok(BaseResponse.ok("Lấy danh sách đơn hàng thành công", pageResponse));
     }
 
+    @Operation(summary = "Hủy đơn hàng", description = "Hủy một đơn hàng đang ở trạng thái chờ thanh toán.")
     @PostMapping("/{orderCode}/cancel")
     public ResponseEntity<BaseResponse<Boolean>> cancelOrder(@PathVariable String orderCode) {
         orderService.cancelOrder(orderCode);

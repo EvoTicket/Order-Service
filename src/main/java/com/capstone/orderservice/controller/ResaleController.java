@@ -25,21 +25,26 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 
 import java.math.BigDecimal;
 
 @RestController
 @RequestMapping("/api/v1/resale")
 @RequiredArgsConstructor
+@Tag(name = "Thị trường Chuyển nhượng", description = "Các endpoint để đăng bán và mua lại vé (Resale)")
 public class ResaleController {
     private final ResaleService resaleService;
     private final ResaleCheckoutFacade resaleCheckoutFacade;
 
+    @Operation(summary = "Tính toán báo giá chuyển nhượng", description = "Tính toán các loại phí và số tiền nhận được khi đăng bán vé.")
     @PostMapping("/quote")
     public ResponseEntity<BaseResponse<ResaleQuoteResponse>> quote(@Valid @RequestBody ResaleQuoteRequest request) {
         return ResponseEntity.ok(BaseResponse.ok("Resale quote calculated successfully", resaleService.quote(request)));
     }
 
+    @Operation(summary = "Lấy danh sách vé đang đăng bán", description = "Trả về danh sách các vé đang được rao bán trên thị trường với các bộ lọc.")
     @GetMapping("/listings")
     public ResponseEntity<BaseResponse<BasePageResponse<ResaleListingResponse>>> getActiveListings(
             @RequestParam(required = false) Long eventId,
@@ -62,12 +67,14 @@ public class ResaleController {
                 BasePageResponse.fromPage(listings)));
     }
 
+    @Operation(summary = "Xem chi tiết tin đăng bán", description = "Lấy thông tin chi tiết của một tin đăng bán vé cụ thể qua mã tin.")
     @GetMapping("/listings/{listingCode}")
     public ResponseEntity<BaseResponse<ResaleListingResponse>> getActiveListingDetail(@PathVariable String listingCode) {
         return ResponseEntity.ok(BaseResponse.ok("Fetched resale listing successfully",
                 resaleService.getActiveListingDetail(listingCode)));
     }
 
+    @Operation(summary = "Đăng bán vé", description = "Tạo một tin đăng bán vé mới lên thị trường chuyển nhượng.")
     @PostMapping("/listings")
     public ResponseEntity<BaseResponse<ResaleListingResponse>> createListing(
             @Valid @RequestBody CreateResaleListingRequest request
@@ -76,12 +83,14 @@ public class ResaleController {
                 resaleService.createListing(request)));
     }
 
+    @Operation(summary = "Hủy tin đăng bán", description = "Gỡ tin đăng bán vé khỏi thị trường.")
     @PostMapping("/listings/{listingCode}/cancel")
     public ResponseEntity<BaseResponse<ResaleListingResponse>> cancelListing(@PathVariable String listingCode) {
         return ResponseEntity.ok(BaseResponse.ok("Resale listing cancelled successfully",
                 resaleService.cancelListing(listingCode)));
     }
 
+    @Operation(summary = "Thanh toán mua lại vé", description = "Tạo đơn hàng mua lại vé từ thị trường chuyển nhượng.")
     @PostMapping("/listings/{listingCode}/checkout")
     public ResponseEntity<BaseResponse<ResaleCheckoutResponse>> checkout(
             @PathVariable String listingCode,
@@ -91,12 +100,14 @@ public class ResaleController {
                 resaleCheckoutFacade.checkout(listingCode, request)));
     }
 
+    @Operation(summary = "Kiểm tra trạng thái thanh toán resale", description = "Kiểm tra xem đơn hàng mua lại vé đã thanh toán thành công hay chưa.")
     @GetMapping("/orders/{orderCode}/payment-status")
     public ResponseEntity<BaseResponse<ResalePaymentStatusResponse>> getPaymentStatus(@PathVariable String orderCode) {
         return ResponseEntity.ok(BaseResponse.ok("Fetched resale payment status successfully",
                 resaleService.getPaymentStatus(orderCode)));
     }
 
+    @Operation(summary = "Tiếp tục thanh toán resale", description = "Tạo lại link thanh toán cho một đơn hàng mua lại vé đang chờ.")
     @PostMapping("/orders/{orderCode}/continue-payment")
     public ResponseEntity<BaseResponse<ResalePaymentStatusResponse>> continuePayment(@PathVariable String orderCode) {
         return ResponseEntity.ok(BaseResponse.ok("Resale payment link created successfully",
