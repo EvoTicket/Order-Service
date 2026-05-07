@@ -334,27 +334,74 @@ public class TicketAssetService {
 
     @Transactional
     public void handleWeb3MintWebhook(Web3MintWebhookRequest request) {
-        if (request.getData() == null || request.getData().getTicketCode() == null) {
-            log.warn("Web3 mint webhook received without ticketCode. JobId: {}", request.getJobId());
+        if (request.getData() == null) {
+            log.warn("Web3 mint webhook received without data. JobId: {}", request.getJobId());
             return;
         }
 
-        String ticketCode = request.getData().getTicketCode();
-        TicketAsset asset = ticketAssetRepository.findByTicketCodeOrAssetCode(ticketCode, ticketCode)
-                .orElseThrow(() -> new AppException(ErrorCode.RESOURCE_NOT_FOUND, "Ticket not found for code: " + ticketCode));
-
-        if ("success".equals(request.getStatus())) {
-            asset.setChainStatus(TicketChainStatus.MINTED);
-            asset.setTxHash(request.getTxHash());
-            asset.setTokenId(request.getData().getTokenId());
-            if (request.getData().getChainCommand() != null) {
-                asset.setToWallet(request.getData().getChainCommand().getToWallet());
-                asset.setMetadataUri(request.getData().getChainCommand().getMetadataURI());
+        // Handle order-level callback
+        if (request.getData().getOrderId() != null && request.getData().getTickets() != null) {
+            log.info("Received order-level mint webhook for orderId: {}, status: {}", request.getData().getOrderId(), request.getStatus());
+            for (Web3MintWebhookRequest.TicketResult ticketResult : request.getData().getTickets()) {
+                boolean isSuccess = ticketResult.getTxHash() != null && ticketResult.getError() == null;
+                handleSingleTicketResult(
+                        ticketResult.getTicketCode(),
+                        ticketResult.getTokenId(),
+                        ticketResult.getTxHash(),
+                        ticketResult.getChainCommand(),
+                        isSuccess,
+                        ticketResult.getError()
+                );
             }
-            log.info("Successfully updated web3 mint info for ticket: {}. TxHash: {}", ticketCode, request.getTxHash());
+            return;
+        }
+
+        // Handle single ticket callback
+        if (request.getData().getTicketCode() != null) {
+            boolean isSuccess = "success".equals(request.getStatus());
+            handleSingleTicketResult(
+                    request.getData().getTicketCode(),
+                    request.getData().getTokenId(),
+                    request.getTxHash(),
+                    request.getData().getChainCommand(),
+                    isSuccess,
+                    request.getError()
+            );
+            return;
+        }
+
+        log.warn("Web3 mint webhook received without ticketCode or orderId. JobId: {}", request.getJobId());
+    }
+
+    private void handleSingleTicketResult(String ticketCode, String tokenId, String txHash, Web3MintWebhookRequest.ChainCommand chainCommand, boolean isSuccess, String error) {
+        if (ticketCode == null) return;
+        
+        Optional<TicketAsset> assetOpt = ticketAssetRepository.findByTicketCodeOrAssetCode(ticketCode, ticketCode);
+        if (assetOpt.isEmpty()) {
+            log.warn("Ticket not found for code: {}", ticketCode);
+            return;
+        }
+        
+        TicketAsset asset = assetOpt.get();
+
+        if (isSuccess) {
+            asset.setChainStatus(TicketChainStatus.MINTED);
+            if (txHash != null) {
+                asset.setTxHash(txHash);
+            }
+            if (tokenId != null) {
+                asset.setTokenId(tokenId);
+            }
+            if (chainCommand != null) {
+                asset.setToWallet(chainCommand.getToWallet());
+                if (chainCommand.getMetadataURI() != null) {
+                    asset.setMetadataUri(chainCommand.getMetadataURI());
+                }
+            }
+            log.info("Successfully updated web3 mint info for ticket: {}. TxHash: {}", ticketCode, txHash);
         } else {
             asset.setChainStatus(TicketChainStatus.MINT_FAILED);
-            log.error("Web3 mint failed for ticket: {}. Error: {}", ticketCode, request.getError());
+            log.error("Web3 mint failed for ticket: {}. Error: {}", ticketCode, error);
         }
 
         ticketAssetRepository.save(asset);

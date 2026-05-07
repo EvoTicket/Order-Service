@@ -1,6 +1,7 @@
 package com.capstone.orderservice.dto.request;
 
 import lombok.Data;
+import java.util.List;
 
 @Data
 public class Web3MintWebhookRequest {
@@ -18,6 +19,21 @@ public class Web3MintWebhookRequest {
         private String tokenId;
         private JobContext jobContext;
         private ChainCommand chainCommand;
+        
+        // Order-level fields
+        private String orderId;
+        private List<TicketResult> tickets;
+        private Integer queuedJobs;
+    }
+    
+    @Data
+    public static class TicketResult {
+        private String tokenId;
+        private String ticketCode;
+        private String txHash;
+        private String metadataURI;
+        private ChainCommand chainCommand;
+        private String error;
     }
 
     @Data
