@@ -40,6 +40,7 @@ public class ResaleListingResponse {
     private LocalDateTime expiresAt;
     private LocalDateTime cancelledAt;
     private LocalDateTime soldAt;
+    private String tokenId;
 
     public static ResaleListingResponse fromEntity(ResaleListing listing) {
         TicketAsset asset = listing.getTicketAsset();
@@ -68,6 +69,7 @@ public class ResaleListingResponse {
                 .expiresAt(listing.getExpiresAt())
                 .cancelledAt(listing.getCancelledAt())
                 .soldAt(listing.getSoldAt())
+                .tokenId(asset.getTokenId())
                 .build();
     }
 }

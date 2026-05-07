@@ -5,6 +5,8 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.math.BigDecimal;
+
 @Data
 @Builder
 @NoArgsConstructor
@@ -18,4 +20,5 @@ public class MyTicketItemResponse {
     private String tokenId;
     private String status;
     private String listingCode;
+    private BigDecimal listingPrice;
 }

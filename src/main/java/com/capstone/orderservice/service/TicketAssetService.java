@@ -86,8 +86,8 @@ public class TicketAssetService {
                 .filter(Objects::nonNull)
                 .toList();
 
-        Map<Long, String> listingCodeMap = resaleListingRepository.findAllById(resaleListingIds).stream()
-                .collect(Collectors.toMap(ResaleListing::getId, ResaleListing::getListingCode));
+        Map<Long, ResaleListing> listingMap = resaleListingRepository.findAllById(resaleListingIds).stream()
+                .collect(Collectors.toMap(ResaleListing::getId, listing -> listing));
 
         Map<Long, List<TicketAsset>> assetsByOrder = assets.stream()
                 .collect(Collectors.groupingBy(TicketAsset::getOriginalOrderId));
@@ -130,6 +130,11 @@ public class TicketAssetService {
                 if (tokenIdStr != null && !tokenIdStr.startsWith("#")) {
                     tokenIdStr = "#" + tokenIdStr;
                 }
+                
+                ResaleListing listing = asset.getCurrentResaleListingId() != null 
+                    ? listingMap.get(asset.getCurrentResaleListingId()) 
+                    : null;
+
                 return MyTicketItemResponse.builder()
                         .id(asset.getId())
                         .ticketName(asset.getTicketTypeName())
@@ -138,7 +143,8 @@ public class TicketAssetService {
                         .ticketCode(asset.getTicketCode())
                         .tokenId(tokenIdStr != null ? tokenIdStr : "")
                         .status(status)
-                        .listingCode(asset.getCurrentResaleListingId() != null ? listingCodeMap.get(asset.getCurrentResaleListingId()) : null)
+                        .listingCode(listing != null ? listing.getListingCode() : null)
+                        .listingPrice(listing != null ? listing.getListingPrice() : null)
                         .build();
             }).toList();
 
