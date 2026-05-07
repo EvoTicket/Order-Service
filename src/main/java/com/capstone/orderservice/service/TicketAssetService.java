@@ -17,6 +17,8 @@ import com.capstone.orderservice.enums.TicketChainStatus;
 import com.capstone.orderservice.exception.AppException;
 import com.capstone.orderservice.exception.ErrorCode;
 import com.capstone.orderservice.repository.TicketAssetRepository;
+import com.capstone.orderservice.repository.ResaleListingRepository;
+import com.capstone.orderservice.entity.ResaleListing;
 import com.capstone.orderservice.security.JwtUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -30,6 +32,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.stream.Collectors;
 import java.util.Optional;
 import java.util.UUID;
@@ -46,6 +49,7 @@ public class TicketAssetService {
     private final InventoryFeignClient inventoryFeignClient;
     private final JwtUtil jwtUtil;
     private final TicketProvenanceService ticketProvenanceService;
+    private final ResaleListingRepository resaleListingRepository;
 
     @Transactional
     public void issueTicketsForConfirmedOrder(Order order) {
@@ -76,6 +80,14 @@ public class TicketAssetService {
     public List<MyTicketGroupResponse> getMyTickets() {
         Long currentUserId = jwtUtil.getDataFromAuth().userId();
         List<TicketAsset> assets = ticketAssetRepository.findByCurrentOwnerId(currentUserId);
+
+        List<Long> resaleListingIds = assets.stream()
+                .map(TicketAsset::getCurrentResaleListingId)
+                .filter(Objects::nonNull)
+                .toList();
+
+        Map<Long, String> listingCodeMap = resaleListingRepository.findAllById(resaleListingIds).stream()
+                .collect(Collectors.toMap(ResaleListing::getId, ResaleListing::getListingCode));
 
         Map<Long, List<TicketAsset>> assetsByOrder = assets.stream()
                 .collect(Collectors.groupingBy(TicketAsset::getOriginalOrderId));
@@ -126,6 +138,7 @@ public class TicketAssetService {
                         .ticketCode(asset.getTicketCode())
                         .tokenId(tokenIdStr != null ? tokenIdStr : "")
                         .status(status)
+                        .listingCode(asset.getCurrentResaleListingId() != null ? listingCodeMap.get(asset.getCurrentResaleListingId()) : null)
                         .build();
             }).toList();
 
@@ -209,7 +222,7 @@ public class TicketAssetService {
                 .originalBuyerId(order.getUserId())
                 .currentOwnerId(order.getUserId())
                 .accessStatus(TicketAccessStatus.VALID)
-                .chainStatus(TicketChainStatus.WEB2_ONLY)
+                .chainStatus(TicketChainStatus.MINT_PENDING)
                 .tokenId(item.getTokenId())
                 .qrSecretHash(null)
                 .qrSecretVersion(1)
@@ -297,6 +310,10 @@ public class TicketAssetService {
 
         if (asset.getEventEndTime() != null && asset.getEventEndTime().isBefore(now)) {
             return new EligibilityDecision(false, "EVENT_ENDED", "Event has already ended");
+        }
+
+        if (asset.getEventStartTime() != null && asset.getEventStartTime().minusHours(3).isBefore(now)) {
+            return new EligibilityDecision(false, "TOO_CLOSE_TO_EVENT", "Cannot resell ticket within 3 hours of event start time");
         }
 
         return new EligibilityDecision(true, "ELIGIBLE", "Ticket is eligible for resale");

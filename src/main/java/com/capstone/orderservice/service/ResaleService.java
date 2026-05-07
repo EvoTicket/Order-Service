@@ -741,6 +741,10 @@ public class ResaleService {
             return new ResaleDecision(false, "EVENT_ENDED", "Event has already ended");
         }
 
+        if (asset.getEventStartTime() != null && asset.getEventStartTime().minusHours(3).isBefore(now)) {
+            return new ResaleDecision(false, "TOO_CLOSE_TO_EVENT", "Cannot resell ticket within 3 hours of event start time");
+        }
+
         if (requestedListingPrice == null || requestedListingPrice.compareTo(BigDecimal.ZERO) <= 0) {
             return new ResaleDecision(false, "INVALID_PRICE", "Listing price must be positive");
         }
