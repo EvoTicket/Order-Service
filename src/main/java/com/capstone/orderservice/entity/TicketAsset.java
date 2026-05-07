@@ -66,8 +66,8 @@ public class TicketAsset {
     @Column(name = "category")
     private String category;
 
-    @Column(name = "province_id")
-    private Long provinceId;
+    @Column(name = "province_code")
+    private Integer provinceCode;
 
     @Column(name = "ticket_type_id", nullable = false)
     private Long ticketTypeId;

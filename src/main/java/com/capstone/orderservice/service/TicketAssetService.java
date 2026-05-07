@@ -253,7 +253,7 @@ public class TicketAssetService {
             }
 
             builder.category(eventMetadata.getCategory())
-                   .provinceId(eventMetadata.getProvinceId());
+                   .provinceCode(eventMetadata.getShowtime().getProvinceCode());
         }
 
         return builder.build();

@@ -17,7 +17,7 @@ public class EventDetailInternalResponse {
     String address;
     String organizerName;
     String category;
-    Long provinceId;
+    Integer provinceCode;
     ShowtimeDetail showtime;
 
     @Getter
@@ -32,5 +32,6 @@ public class EventDetailInternalResponse {
         String venue;
         String address;
         String fullAddress;
+        Integer provinceCode;
     }
 }
