@@ -168,14 +168,28 @@ public class ResaleService {
             Long ticketTypeId,
             BigDecimal minPrice,
             BigDecimal maxPrice,
+            String listingCode,
+            String category,
+            Long provinceId,
+            String keyword,
+            LocalDateTime startTime,
+            LocalDateTime endTime,
             Pageable pageable
     ) {
+        String keywordParam = (keyword != null && !keyword.trim().isEmpty()) ? "%" + keyword.trim() + "%" : null;
+
         return resaleListingRepository.findActiveListings(
                         ResaleListingStatus.ACTIVE,
                         eventId,
                         ticketTypeId,
                         minPrice,
                         maxPrice,
+                        listingCode,
+                        category,
+                        provinceId,
+                        keywordParam,
+                        startTime,
+                        endTime,
                         pageable
                 )
                 .map(ResaleListingResponse::fromEntity);

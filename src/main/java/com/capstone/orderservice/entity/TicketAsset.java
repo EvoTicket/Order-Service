@@ -63,6 +63,12 @@ public class TicketAsset {
     @Column(name = "venue_address")
     private String venueAddress;
 
+    @Column(name = "category")
+    private String category;
+
+    @Column(name = "province_id")
+    private Long provinceId;
+
     @Column(name = "ticket_type_id", nullable = false)
     private Long ticketTypeId;
 

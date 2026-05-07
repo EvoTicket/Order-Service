@@ -245,6 +245,9 @@ public class TicketAssetService {
                         .venueName(eventMetadata.getVenue())
                         .venueAddress(eventMetadata.getAddress());
             }
+
+            builder.category(eventMetadata.getCategory())
+                   .provinceId(eventMetadata.getProvinceId());
         }
 
         return builder.build();

@@ -32,20 +32,32 @@ public interface ResaleListingRepository extends JpaRepository<ResaleListing, Lo
     boolean existsByTicketAsset_IdAndStatusIn(Long ticketAssetId, Collection<ResaleListingStatus> statuses);
 
     @Query("""
-            SELECT r FROM ResaleListing r
-            JOIN r.ticketAsset t
-            WHERE r.status = :status
-            AND (:eventId IS NULL OR t.eventId = :eventId)
-            AND (:ticketTypeId IS NULL OR t.ticketTypeId = :ticketTypeId)
-            AND (:minPrice IS NULL OR r.listingPrice >= :minPrice)
-            AND (:maxPrice IS NULL OR r.listingPrice <= :maxPrice)
-            """)
-    Page<ResaleListing> findActiveListings(
-            @Param("status") ResaleListingStatus status,
-            @Param("eventId") Long eventId,
-            @Param("ticketTypeId") Long ticketTypeId,
-            @Param("minPrice") BigDecimal minPrice,
-            @Param("maxPrice") BigDecimal maxPrice,
-            Pageable pageable
-    );
+             SELECT r FROM ResaleListing r
+             JOIN r.ticketAsset t
+             WHERE r.status = :status
+             AND (:eventId IS NULL OR t.eventId = :eventId)
+             AND (:ticketTypeId IS NULL OR t.ticketTypeId = :ticketTypeId)
+             AND (:minPrice IS NULL OR r.listingPrice >= :minPrice)
+             AND (:maxPrice IS NULL OR r.listingPrice <= :maxPrice)
+             AND (:listingCode IS NULL OR r.listingCode LIKE CONCAT('%', :listingCode, '%'))
+             AND (:category IS NULL OR t.category = :category)
+             AND (:provinceId IS NULL OR t.provinceId = :provinceId)
+             AND (:keyword IS NULL OR LOWER(t.eventName) LIKE LOWER(:keyword) OR LOWER(t.venueAddress) LIKE LOWER(:keyword))
+             AND (cast(:startTime as timestamp) IS NULL OR t.eventStartTime >= :startTime)
+             AND (cast(:endTime as timestamp) IS NULL OR t.eventStartTime <= :endTime)
+             """)
+     Page<ResaleListing> findActiveListings(
+             @Param("status") ResaleListingStatus status,
+             @Param("eventId") Long eventId,
+             @Param("ticketTypeId") Long ticketTypeId,
+             @Param("minPrice") BigDecimal minPrice,
+             @Param("maxPrice") BigDecimal maxPrice,
+             @Param("listingCode") String listingCode,
+             @Param("category") String category,
+             @Param("provinceId") Long provinceId,
+             @Param("keyword") String keyword,
+             @Param("startTime") java.time.LocalDateTime startTime,
+             @Param("endTime") java.time.LocalDateTime endTime,
+             Pageable pageable
+     );
 }

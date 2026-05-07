@@ -51,6 +51,12 @@ public class ResaleController {
             @RequestParam(required = false) Long ticketTypeId,
             @RequestParam(required = false) BigDecimal minPrice,
             @RequestParam(required = false) BigDecimal maxPrice,
+            @RequestParam(required = false) String listingCode,
+            @RequestParam(required = false) String category,
+            @RequestParam(required = false) Long provinceId,
+            @RequestParam(required = false) String keyword,
+            @RequestParam(required = false) java.time.LocalDateTime startTime,
+            @RequestParam(required = false) java.time.LocalDateTime endTime,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size
     ) {
@@ -60,6 +66,12 @@ public class ResaleController {
                 ticketTypeId,
                 minPrice,
                 maxPrice,
+                listingCode,
+                category,
+                provinceId,
+                keyword,
+                startTime,
+                endTime,
                 pageable
         );
 
