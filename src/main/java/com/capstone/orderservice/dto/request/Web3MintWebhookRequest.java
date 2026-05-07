@@ -1,9 +1,11 @@
 package com.capstone.orderservice.dto.request;
 
 import lombok.Data;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import java.util.List;
 
 @Data
+@JsonIgnoreProperties(ignoreUnknown = true)
 public class Web3MintWebhookRequest {
     private String jobId;
     private String operation;
@@ -14,9 +16,11 @@ public class Web3MintWebhookRequest {
     private String error;
 
     @Data
+    @JsonIgnoreProperties(ignoreUnknown = true)
     public static class Web3MintData {
         private String ticketCode;
         private String tokenId;
+        private String metadataURI;
         private JobContext jobContext;
         private ChainCommand chainCommand;
         
@@ -27,6 +31,7 @@ public class Web3MintWebhookRequest {
     }
     
     @Data
+    @JsonIgnoreProperties(ignoreUnknown = true)
     public static class TicketResult {
         private String tokenId;
         private String ticketCode;
@@ -37,6 +42,7 @@ public class Web3MintWebhookRequest {
     }
 
     @Data
+    @JsonIgnoreProperties(ignoreUnknown = true)
     public static class JobContext {
         private String userId;
         private String orderId;
@@ -44,9 +50,12 @@ public class Web3MintWebhookRequest {
     }
 
     @Data
+    @JsonIgnoreProperties(ignoreUnknown = true)
     public static class ChainCommand {
         private String toWallet;
         private Long basePrice;
         private String metadataURI;
+        private String ticketRefHash;
+        private String orderRefHash;
     }
 }
