@@ -32,6 +32,7 @@ public class CreateOrderRequest {
 
     @NotBlank
     @Pattern(regexp = "^[a-z]{2}$")
+    @Builder.Default
     private String locale = "vi";
 
     private List<Long> voucherIds;
