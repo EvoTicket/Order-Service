@@ -5,7 +5,7 @@ import com.capstone.orderservice.enums.ResaleListingStatus;
 import jakarta.persistence.LockModeType;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
-import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -16,7 +16,7 @@ import java.math.BigDecimal;
 import java.util.Optional;
 
 @Repository
-public interface ResaleListingRepository extends JpaRepository<ResaleListing, Long> {
+public interface ResaleListingRepository extends JpaRepository<ResaleListing, Long>, JpaSpecificationExecutor<ResaleListing> {
     Optional<ResaleListing> findByListingCode(String listingCode);
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
@@ -31,33 +31,7 @@ public interface ResaleListingRepository extends JpaRepository<ResaleListing, Lo
 
     boolean existsByTicketAsset_IdAndStatusIn(Long ticketAssetId, Collection<ResaleListingStatus> statuses);
 
-    @Query("""
-             SELECT r FROM ResaleListing r
-             JOIN r.ticketAsset t
-             WHERE r.status = :status
-             AND (:eventId IS NULL OR t.eventId = :eventId)
-             AND (:ticketTypeId IS NULL OR t.ticketTypeId = :ticketTypeId)
-             AND (:minPrice IS NULL OR r.listingPrice >= :minPrice)
-             AND (:maxPrice IS NULL OR r.listingPrice <= :maxPrice)
-             AND (:listingCode IS NULL OR r.listingCode LIKE CONCAT('%', :listingCode, '%'))
-             AND (:category IS NULL OR t.category = :category)
-             AND (:provinceCode IS NULL OR t.provinceCode = :provinceCode)
-             AND (:keyword IS NULL OR LOWER(t.eventName) LIKE LOWER(:keyword) OR LOWER(t.venueAddress) LIKE LOWER(:keyword))
-             AND (cast(:startTime as timestamp) IS NULL OR t.eventStartTime >= :startTime)
-             AND (cast(:endTime as timestamp) IS NULL OR t.eventStartTime <= :endTime)
-             """)
-     Page<ResaleListing> findActiveListings(
-             @Param("status") ResaleListingStatus status,
-             @Param("eventId") Long eventId,
-             @Param("ticketTypeId") Long ticketTypeId,
-             @Param("minPrice") BigDecimal minPrice,
-             @Param("maxPrice") BigDecimal maxPrice,
-             @Param("listingCode") String listingCode,
-             @Param("category") String category,
-             @Param("provinceCode") Integer provinceCode,
-             @Param("keyword") String keyword,
-             @Param("startTime") java.time.LocalDateTime startTime,
-             @Param("endTime") java.time.LocalDateTime endTime,
-             Pageable pageable
-     );
+    @org.springframework.data.jpa.repository.Modifying
+    @Query("UPDATE ResaleListing r SET r.viewCount = r.viewCount + 1 WHERE r.id = :id")
+    void incrementViewCount(@Param("id") Long id);
 }

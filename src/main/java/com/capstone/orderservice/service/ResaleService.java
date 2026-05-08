@@ -30,8 +30,10 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import com.capstone.orderservice.repository.ResaleListingSpecification;
 
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
@@ -59,6 +61,7 @@ public class ResaleService {
     private final ResalePricingService resalePricingService;
     private final TicketProvenanceService ticketProvenanceService;
     private final OrderRepository orderRepository;
+    private final ResaleListingStatsService resaleListingStatsService;
     private final JwtUtil jwtUtil;
     private final PaymentFeignClient paymentFeignClient;
     
@@ -174,35 +177,48 @@ public class ResaleService {
             String keyword,
             LocalDateTime startTime,
             LocalDateTime endTime,
+            com.capstone.orderservice.enums.ResaleSortOption sortOption,
             Pageable pageable
     ) {
         String keywordParam = (keyword != null && !keyword.trim().isEmpty()) ? "%" + keyword.trim() + "%" : null;
 
-        return resaleListingRepository.findActiveListings(
-                        ResaleListingStatus.ACTIVE,
-                        eventId,
-                        ticketTypeId,
-                        minPrice,
-                        maxPrice,
-                        listingCode,
-                        category,
-                        provinceCode,
-                        keywordParam,
-                        startTime,
-                        endTime,
-                        pageable
-                )
+        Specification<ResaleListing> spec = ResaleListingSpecification.filterActiveListings(
+                ResaleListingStatus.ACTIVE,
+                eventId,
+                ticketTypeId,
+                minPrice,
+                maxPrice,
+                listingCode,
+                category,
+                provinceCode,
+                keywordParam,
+                startTime,
+                endTime
+        );
+
+        org.springframework.data.domain.Sort sort = sortOption != null ? sortOption.getSort() : org.springframework.data.domain.Sort.by(org.springframework.data.domain.Sort.Direction.DESC, "createdAt");
+        org.springframework.data.domain.Pageable sortedPageable = org.springframework.data.domain.PageRequest.of(
+                pageable.getPageNumber(),
+                pageable.getPageSize(),
+                sort.and(pageable.getSort())
+        );
+
+        return resaleListingRepository.findAll(spec, sortedPageable)
                 .map(ResaleListingResponse::fromEntity);
     }
 
-    @Transactional(readOnly = true)
+    @Transactional
     public ResaleListingResponse getActiveListingDetail(String listingCode) {
-        ResaleListing listing = resaleListingRepository.findByListingCode(listingCode)
+        // Using ForUpdate to apply pessimistic lock as requested
+        ResaleListing listing = resaleListingRepository.findByListingCodeForUpdate(listingCode)
                 .orElseThrow(() -> new AppException(ErrorCode.RESOURCE_NOT_FOUND, "Resale listing not found"));
 
         if (listing.getStatus() != ResaleListingStatus.ACTIVE) {
             throw new AppException(ErrorCode.RESOURCE_NOT_FOUND, "Resale listing not found");
         }
+
+        // Increment view count asynchronously via separate service
+        resaleListingStatsService.incrementListingViewCount(listing.getId());
 
         return ResaleListingResponse.fromEntity(listing);
     }

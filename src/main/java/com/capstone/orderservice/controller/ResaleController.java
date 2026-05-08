@@ -8,7 +8,8 @@ import com.capstone.orderservice.dto.request.ResaleQuoteRequest;
 import com.capstone.orderservice.dto.response.ResaleCheckoutResponse;
 import com.capstone.orderservice.dto.response.ResaleListingResponse;
 import com.capstone.orderservice.dto.response.ResalePaymentStatusResponse;
-import com.capstone.orderservice.dto.response.ResaleQuoteResponse;
+import com.capstone.orderservice.enums.ResaleListingStatus;
+import com.capstone.orderservice.enums.ResaleSortOption;
 import com.capstone.orderservice.service.ResaleCheckoutFacade;
 import com.capstone.orderservice.service.ResaleService;
 import jakarta.validation.Valid;
@@ -57,10 +58,11 @@ public class ResaleController {
             @RequestParam(required = false) String keyword,
             @RequestParam(required = false) java.time.LocalDateTime startTime,
             @RequestParam(required = false) java.time.LocalDateTime endTime,
+            @RequestParam(required = false) ResaleSortOption sortBy,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size
     ) {
-        Pageable pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt"));
+        Pageable pageable = PageRequest.of(page, size);
         Page<ResaleListingResponse> listings = resaleService.getActiveListings(
                 eventId,
                 ticketTypeId,
@@ -72,6 +74,7 @@ public class ResaleController {
                 keyword,
                 startTime,
                 endTime,
+                sortBy,
                 pageable
         );
 

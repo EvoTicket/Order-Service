@@ -83,6 +83,10 @@ public class ResaleListing {
     @Column(name = "cancelled_at")
     private LocalDateTime cancelledAt;
 
+    @Builder.Default
+    @Column(name = "view_count", nullable = false)
+    private Long viewCount = 0L;
+
     @Version
     @Column(name = "version", nullable = false)
     private Long version;

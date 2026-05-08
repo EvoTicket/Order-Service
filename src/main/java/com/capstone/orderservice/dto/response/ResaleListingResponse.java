@@ -41,6 +41,7 @@ public class ResaleListingResponse {
     private LocalDateTime cancelledAt;
     private LocalDateTime soldAt;
     private String tokenId;
+    private Long viewCount;
 
     public static ResaleListingResponse fromEntity(ResaleListing listing) {
         TicketAsset asset = listing.getTicketAsset();
@@ -70,6 +71,7 @@ public class ResaleListingResponse {
                 .cancelledAt(listing.getCancelledAt())
                 .soldAt(listing.getSoldAt())
                 .tokenId(asset.getTokenId())
+                .viewCount(listing.getViewCount())
                 .build();
     }
 }
