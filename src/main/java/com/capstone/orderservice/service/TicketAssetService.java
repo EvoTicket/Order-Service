@@ -123,10 +123,6 @@ public class TicketAssetService {
 
             List<MyTicketItemResponse> tickets = groupAssets.stream().map(asset -> {
                 String status = determineTicketStatus(asset);
-                String tokenIdStr = asset.getTokenId();
-                if (tokenIdStr != null && !tokenIdStr.startsWith("#")) {
-                    tokenIdStr = "#" + tokenIdStr;
-                }
                 
                 ResaleListing listing = asset.getCurrentResaleListingId() != null 
                     ? listingMap.get(asset.getCurrentResaleListingId()) 
@@ -138,7 +134,7 @@ public class TicketAssetService {
                         .ticketType(asset.getTicketTypeName())
                         .seat(asset.getTicketTypeName())
                         .ticketCode(asset.getTicketCode())
-                        .tokenId(tokenIdStr != null ? tokenIdStr : "")
+                        .tokenId(asset.getTokenId())
                         .status(status)
                         .listingCode(listing != null ? listing.getListingCode() : null)
                         .listingPrice(listing != null ? listing.getListingPrice() : null)
