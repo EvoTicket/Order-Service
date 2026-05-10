@@ -28,14 +28,8 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
-import java.util.Objects;
+import java.util.*;
 import java.util.stream.Collectors;
-import java.util.Optional;
-import java.util.UUID;
 
 @Slf4j
 @Service
@@ -79,7 +73,10 @@ public class TicketAssetService {
     @Transactional(readOnly = true)
     public List<MyTicketGroupResponse> getMyTickets() {
         Long currentUserId = jwtUtil.getDataFromAuth().userId();
-        List<TicketAsset> assets = ticketAssetRepository.findByCurrentOwnerId(currentUserId);
+        List<TicketAsset> assets = ticketAssetRepository.findByCurrentOwnerId(currentUserId)
+                .stream()
+                .sorted(Comparator.comparing(TicketAsset::getCreatedAt).reversed())
+                .toList();
 
         List<Long> resaleListingIds = assets.stream()
                 .map(TicketAsset::getCurrentResaleListingId)
