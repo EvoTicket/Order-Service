@@ -23,7 +23,8 @@ public class OrderItemResponse {
     private String ticketCode;
     private String tokenId;
     private String contractAddress;
-    private Long blockNumber;
+    private Long fromBlock;
+    private Long toBlock;
     private LocalDateTime createdAt;
 
     public static OrderItemResponse fromEntity(OrderItem item) {
@@ -37,7 +38,8 @@ public class OrderItemResponse {
                 .ticketCode(item.getTicketCode())
                 .tokenId(item.getTokenId())
                 .contractAddress(item.getContractAddress())
-                .blockNumber(item.getBlockNumber())
+                .fromBlock(item.getFromBlock())
+                .toBlock(item.getToBlock())
                 .createdAt(item.getCreatedAt())
                 .build();
     }

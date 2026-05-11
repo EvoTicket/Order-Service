@@ -42,7 +42,8 @@ public class ResaleListingResponse {
     private LocalDateTime soldAt;
     private String tokenId;
     private String contractAddress;
-    private Long blockNumber;
+    private Long fromBlock;
+    private Long toBlock;
     private Long viewCount;
 
     public static ResaleListingResponse fromEntity(ResaleListing listing) {
@@ -74,7 +75,8 @@ public class ResaleListingResponse {
                 .soldAt(listing.getSoldAt())
                 .tokenId(asset.getTokenId())
                 .contractAddress(asset.getContractAddress())
-                .blockNumber(asset.getBlockNumber())
+                .fromBlock(asset.getFromBlock())
+                .toBlock(asset.getToBlock())
                 .viewCount(listing.getViewCount())
                 .build();
     }
