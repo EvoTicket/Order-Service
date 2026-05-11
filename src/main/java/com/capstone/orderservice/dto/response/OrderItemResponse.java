@@ -22,6 +22,8 @@ public class OrderItemResponse {
     private BigDecimal subtotal;
     private String ticketCode;
     private String tokenId;
+    private String contractAddress;
+    private Long blockNumber;
     private LocalDateTime createdAt;
 
     public static OrderItemResponse fromEntity(OrderItem item) {
@@ -34,6 +36,8 @@ public class OrderItemResponse {
                 .subtotal(item.getUnitPrice())
                 .ticketCode(item.getTicketCode())
                 .tokenId(item.getTokenId())
+                .contractAddress(item.getContractAddress())
+                .blockNumber(item.getBlockNumber())
                 .createdAt(item.getCreatedAt())
                 .build();
     }

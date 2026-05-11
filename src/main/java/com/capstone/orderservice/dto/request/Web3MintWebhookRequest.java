@@ -8,9 +8,12 @@ import java.util.List;
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class Web3MintWebhookRequest {
     private String jobId;
+    private String orderId; // Support flat structure
     private String operation;
     private String status;
     private String txHash;
+    private List<TicketResult> tickets; // Support flat structure
+    private Integer queuedJobs; // Support flat structure
     private Web3MintData data;
     private String timestamp;
     private String error;
@@ -36,6 +39,8 @@ public class Web3MintWebhookRequest {
         private String tokenId;
         private String ticketCode;
         private String txHash;
+        private Long blockNumber;
+        private String contractAddress;
         private String metadataURI;
         private ChainCommand chainCommand;
         private String error;

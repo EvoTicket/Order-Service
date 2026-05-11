@@ -101,6 +101,9 @@ public class TicketAsset {
     @Column(name = "tx_hash")
     private String txHash;
 
+    @Column(name = "block_number")
+    private Long blockNumber;
+
     @Column(name = "contract_address")
     private String contractAddress;
 

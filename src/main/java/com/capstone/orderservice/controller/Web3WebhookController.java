@@ -1,6 +1,7 @@
 package com.capstone.orderservice.controller;
 
 import com.capstone.orderservice.dto.request.Web3MintWebhookRequest;
+import com.capstone.orderservice.dto.request.Web3TransferWebhookRequest;
 import com.capstone.orderservice.service.TicketAssetService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -23,6 +24,14 @@ public class Web3WebhookController {
     public ResponseEntity<String> handleMintTicketWebhook(@RequestBody Web3MintWebhookRequest request) {
         log.info("Received web3 mint webhook for job: {}", request.getJobId());
         ticketAssetService.handleWeb3MintWebhook(request);
+        return ResponseEntity.ok("Webhook received");
+    }
+
+    @Operation(summary = "Nhận kết quả Transfer vé", description = "Được gọi bởi Web3 Worker khi quá trình chuyển nhượng vé trên blockchain hoàn tất.")
+    @PostMapping("/transfer-ticket")
+    public ResponseEntity<String> handleTransferTicketWebhook(@RequestBody Web3TransferWebhookRequest request) {
+        log.info("Received web3 transfer webhook for job: {}", request.getJobId());
+        ticketAssetService.handleWeb3TransferWebhook(request);
         return ResponseEntity.ok("Webhook received");
     }
 }

@@ -22,6 +22,8 @@ public interface TicketAssetRepository extends JpaRepository<TicketAsset, Long> 
     Optional<TicketAsset> findByIdAndCurrentOwnerId(Long id, Long currentOwnerId);
 
     Optional<TicketAsset> findByTicketCodeOrAssetCode(String ticketCode, String assetCode);
+    
+    Optional<TicketAsset> findByTokenId(String tokenId);
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("SELECT t FROM TicketAsset t WHERE t.id = :id")

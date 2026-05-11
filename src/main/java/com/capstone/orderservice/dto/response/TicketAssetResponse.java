@@ -35,6 +35,7 @@ public class TicketAssetResponse {
     private String tokenId;
     private String txHash;
     private String contractAddress;
+    private Long blockNumber;
     private Long currentResaleListingId;
     private LocalDateTime usedAt;
     private LocalDateTime createdAt;

@@ -7,6 +7,7 @@ import com.capstone.orderservice.dto.response.MyTicketItemResponse;
 import com.capstone.orderservice.dto.response.ResaleEligibilityResponse;
 import com.capstone.orderservice.dto.response.TicketAssetResponse;
 import com.capstone.orderservice.dto.request.Web3MintWebhookRequest;
+import com.capstone.orderservice.dto.request.Web3TransferWebhookRequest;
 import com.capstone.orderservice.entity.Order;
 import com.capstone.orderservice.entity.OrderItem;
 import com.capstone.orderservice.entity.TicketAsset;
@@ -135,6 +136,8 @@ public class TicketAssetService {
                         .seat(asset.getTicketTypeName())
                         .ticketCode(asset.getTicketCode())
                         .tokenId(asset.getTokenId())
+                        .contractAddress(asset.getContractAddress())
+                        .blockNumber(asset.getBlockNumber())
                         .status(status)
                         .listingCode(listing != null ? listing.getListingCode() : null)
                         .listingPrice(listing != null ? listing.getListingPrice() : null)
@@ -276,6 +279,7 @@ public class TicketAssetService {
                 .tokenId(asset.getTokenId())
                 .txHash(asset.getTxHash())
                 .contractAddress(asset.getContractAddress())
+                .blockNumber(asset.getBlockNumber())
                 .currentResaleListingId(asset.getCurrentResaleListingId())
                 .usedAt(asset.getUsedAt())
                 .createdAt(asset.getCreatedAt())
@@ -353,25 +357,30 @@ public class TicketAssetService {
 
     @Transactional
     public void handleWeb3MintWebhook(Web3MintWebhookRequest request) {
-        if (request.getData() == null) {
-            log.warn("Web3 mint webhook received without data. JobId: {}", request.getJobId());
-            return;
-        }
+        // Support flat structure for order-level callback
+        String orderId = request.getOrderId() != null ? request.getOrderId() : (request.getData() != null ? request.getData().getOrderId() : null);
+        List<Web3MintWebhookRequest.TicketResult> tickets = request.getTickets() != null ? request.getTickets() : (request.getData() != null ? request.getData().getTickets() : null);
 
-        // Handle order-level callback
-        if (request.getData().getOrderId() != null && request.getData().getTickets() != null) {
-            log.info("Received order-level mint webhook for orderId: {}, status: {}", request.getData().getOrderId(), request.getStatus());
-            for (Web3MintWebhookRequest.TicketResult ticketResult : request.getData().getTickets()) {
+        if (orderId != null && tickets != null) {
+            log.info("Received order-level mint webhook for orderId: {}, status: {}", orderId, request.getStatus());
+            for (Web3MintWebhookRequest.TicketResult ticketResult : tickets) {
                 boolean isSuccess = ticketResult.getTxHash() != null && ticketResult.getError() == null;
                 handleSingleTicketResult(
                         ticketResult.getTicketCode(),
                         ticketResult.getTokenId(),
                         ticketResult.getTxHash(),
+                        ticketResult.getBlockNumber(),
+                        ticketResult.getContractAddress(),
                         ticketResult.getChainCommand(),
                         isSuccess,
                         ticketResult.getError()
                 );
             }
+            return;
+        }
+
+        if (request.getData() == null) {
+            log.warn("Web3 mint webhook received without data. JobId: {}", request.getJobId());
             return;
         }
 
@@ -382,6 +391,8 @@ public class TicketAssetService {
                     request.getData().getTicketCode(),
                     request.getData().getTokenId(),
                     request.getTxHash(),
+                    null, // blockNumber not at top level for single mint currently
+                    null, // contractAddress not at top level for single mint currently
                     request.getData().getChainCommand(),
                     isSuccess,
                     request.getError()
@@ -392,7 +403,66 @@ public class TicketAssetService {
         log.warn("Web3 mint webhook received without ticketCode or orderId. JobId: {}", request.getJobId());
     }
 
-    private void handleSingleTicketResult(String ticketCode, String tokenId, String txHash, Web3MintWebhookRequest.ChainCommand chainCommand, boolean isSuccess, String error) {
+    @Transactional
+    public void handleWeb3TransferWebhook(Web3TransferWebhookRequest request) {
+        if (request.getData() == null) {
+            log.warn("Web3 transfer webhook received without data. JobId: {}", request.getJobId());
+            return;
+        }
+
+        String tokenId = request.getData().getTokenId();
+        if (tokenId == null) {
+            log.warn("Web3 transfer webhook received without tokenId. JobId: {}", request.getJobId());
+            return;
+        }
+
+        Optional<TicketAsset> assetOpt = ticketAssetRepository.findByTokenId(tokenId);
+        if (assetOpt.isEmpty()) {
+            log.warn("Ticket not found for tokenId: {}", tokenId);
+            return;
+        }
+
+        TicketAsset asset = assetOpt.get();
+        boolean isSuccess = "success".equals(request.getStatus());
+
+        if (isSuccess) {
+            asset.setChainStatus(TicketChainStatus.TRANSFERRED);
+            if (request.getTxHash() != null) {
+                asset.setTxHash(request.getTxHash());
+            }
+            if (request.getBlockNumber() != null) {
+                asset.setBlockNumber(request.getBlockNumber());
+            }
+            if (request.getAddressContract() != null) {
+                asset.setContractAddress(request.getAddressContract());
+            }
+
+            // Sync with OrderItem
+            if (asset.getOrderItem() != null) {
+                OrderItem item = asset.getOrderItem();
+                if (request.getBlockNumber() != null) item.setBlockNumber(request.getBlockNumber());
+                if (request.getAddressContract() != null) item.setContractAddress(request.getAddressContract());
+            }
+
+            // Update owner if possible
+            if (request.getData().getTo_userID() != null) {
+                try {
+                    Long newOwnerId = Long.parseLong(request.getData().getTo_userID());
+                    asset.setCurrentOwnerId(newOwnerId);
+                } catch (NumberFormatException e) {
+                    log.warn("Failed to parse to_userID: {}", request.getData().getTo_userID());
+                }
+            }
+            log.info("Successfully updated web3 transfer info for ticket: {}. TxHash: {}", tokenId, request.getTxHash());
+        } else {
+            asset.setChainStatus(TicketChainStatus.TRANSFER_FAILED);
+            log.error("Web3 transfer failed for ticket: {}. Error: {}", tokenId, request.getError());
+        }
+
+        ticketAssetRepository.save(asset);
+    }
+
+    private void handleSingleTicketResult(String ticketCode, String tokenId, String txHash, Long blockNumber, String contractAddress, Web3MintWebhookRequest.ChainCommand chainCommand, boolean isSuccess, String error) {
         if (ticketCode == null) return;
         
         Optional<TicketAsset> assetOpt = ticketAssetRepository.findByTicketCodeOrAssetCode(ticketCode, ticketCode);
@@ -411,12 +481,27 @@ public class TicketAssetService {
             if (tokenId != null) {
                 asset.setTokenId(tokenId);
             }
+            if (blockNumber != null) {
+                asset.setBlockNumber(blockNumber);
+            }
+            if (contractAddress != null) {
+                asset.setContractAddress(contractAddress);
+            }
             if (chainCommand != null) {
                 asset.setToWallet(chainCommand.getToWallet());
                 if (chainCommand.getMetadataURI() != null) {
                     asset.setMetadataUri(chainCommand.getMetadataURI());
                 }
             }
+
+            // Sync with OrderItem
+            if (asset.getOrderItem() != null) {
+                OrderItem item = asset.getOrderItem();
+                if (tokenId != null) item.setTokenId(tokenId);
+                if (blockNumber != null) item.setBlockNumber(blockNumber);
+                if (contractAddress != null) item.setContractAddress(contractAddress);
+            }
+
             log.info("Successfully updated web3 mint info for ticket: {}. TxHash: {}", ticketCode, txHash);
         } else {
             asset.setChainStatus(TicketChainStatus.MINT_FAILED);

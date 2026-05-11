@@ -25,6 +25,8 @@ public class TicketProvenanceResponse {
     private BigDecimal price;
     private String txHash;
     private String tokenId;
+    private String contractAddress;
+    private Long blockNumber;
     private String chainStatus;
     private String description;
     private LocalDateTime createdAt;
@@ -41,6 +43,8 @@ public class TicketProvenanceResponse {
                 .price(provenance.getPrice())
                 .txHash(provenance.getTxHash())
                 .tokenId(provenance.getTokenId())
+                .contractAddress(provenance.getContractAddress())
+                .blockNumber(provenance.getBlockNumber())
                 .chainStatus(provenance.getChainStatus())
                 .description(provenance.getDescription())
                 .createdAt(provenance.getCreatedAt())

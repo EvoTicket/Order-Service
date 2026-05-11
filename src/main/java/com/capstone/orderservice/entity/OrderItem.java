@@ -36,6 +36,12 @@ public class OrderItem {
     @Column(name = "token_id")
     private String tokenId;
 
+    @Column(name = "block_number")
+    private Long blockNumber;
+
+    @Column(name = "contract_address")
+    private String contractAddress;
+
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;
 

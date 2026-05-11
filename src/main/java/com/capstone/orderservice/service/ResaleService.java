@@ -34,6 +34,9 @@ import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import com.capstone.orderservice.repository.ResaleListingSpecification;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
+import org.springframework.web.client.RestClient;
 
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
@@ -42,7 +45,9 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.HexFormat;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.ThreadLocalRandom;
@@ -535,6 +540,33 @@ public class ResaleService {
         ticketProvenanceService.recordResalePurchased(asset, listing, order);
         ticketProvenanceService.recordOwnershipTransferred(asset, listing, order, sellerId, buyerId);
         ticketProvenanceService.recordQrRotated(asset, listing, order, sellerId, buyerId, oldQrVersion, newQrVersion);
+
+        // Call web3-worker-service to transfer ticket on blockchain
+        Map<String, Object> transferPayload = new HashMap<>();
+        transferPayload.put("from_userID", String.valueOf(sellerId));
+        transferPayload.put("to_userID", String.valueOf(buyerId));
+        transferPayload.put("tokenId", asset.getTokenId());
+        transferPayload.put("transferPrice", listing.getListingPrice());
+
+        TransactionSynchronizationManager.registerSynchronization(
+            new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    try {
+                        RestClient restClient = RestClient.create("http://web3-worker-service:4500");
+                        restClient.post()
+                                .uri("/api/blockchain/transfer")
+                                .body(transferPayload)
+                                .retrieve()
+                                .toBodilessEntity();
+                        log.info("Successfully sent transfer request to web3-worker-service for ticket tokenId {} from user {} to {}",
+                                asset.getTokenId(), sellerId, buyerId);
+                    } catch (Exception e) {
+                        log.error("Failed to call web3-worker-service for transferring ticket tokenId {}", asset.getTokenId(), e);
+                    }
+                }
+            }
+        );
     }
 
 

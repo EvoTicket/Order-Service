@@ -151,6 +151,12 @@ public class OrderService {
     public void markPaid(String orderCode) {
         Order order = orderRepository.findByOrderCode(orderCode)
                 .orElseThrow(() -> new AppException(ErrorCode.RESOURCE_NOT_FOUND, "Order not found"));
+
+        if (order.getOrderType() == OrderType.RESALE) {
+            log.info("Order {} is a resale order; skipping markPaid as it is handled by ResaleService", orderCode);
+            return;
+        }
+
         if (order.getOrderStatus() == OrderStatus.CONFIRMED) {
             ticketAssetService.issueTicketsForConfirmedOrder(order);
             log.info("Order {} is already confirmed; ensured ticket assets are issued", orderCode);

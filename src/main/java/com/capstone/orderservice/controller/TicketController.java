@@ -3,6 +3,7 @@ package com.capstone.orderservice.controller;
 import com.capstone.orderservice.dto.BaseResponse;
 import com.capstone.orderservice.dto.response.MyTicketGroupResponse;
 import com.capstone.orderservice.dto.response.ResaleEligibilityResponse;
+import com.capstone.orderservice.dto.response.RichTicketProvenanceResponse;
 import com.capstone.orderservice.dto.response.TicketAssetResponse;
 import com.capstone.orderservice.dto.response.TicketProvenanceResponse;
 import com.capstone.orderservice.service.TicketAssetService;
@@ -45,10 +46,9 @@ public class TicketController {
         return ResponseEntity.ok(BaseResponse.ok("Fetched resale eligibility successfully",
                 ticketAssetService.getResaleEligibility(ticketAssetId)));
     }
-
     @Operation(summary = "Xem lịch sử blockchain của vé (Provenance)", description = "Truy xuất lịch sử sở hữu và các giao dịch on-chain của vé.")
     @GetMapping("/{ticketAssetId}/provenance")
-    public ResponseEntity<BaseResponse<java.util.List<TicketProvenanceResponse>>> getTicketProvenance(
+    public ResponseEntity<BaseResponse<RichTicketProvenanceResponse>> getTicketProvenance(
             @PathVariable Long ticketAssetId
     ) {
         return ResponseEntity.ok(BaseResponse.ok("Fetched ticket provenance successfully",
