@@ -74,10 +74,7 @@ public class TicketAssetService {
     @Transactional(readOnly = true)
     public List<MyTicketGroupResponse> getMyTickets() {
         Long currentUserId = jwtUtil.getDataFromAuth().userId();
-        List<TicketAsset> assets = ticketAssetRepository.findByCurrentOwnerId(currentUserId)
-                .stream()
-                .sorted(Comparator.comparing(TicketAsset::getCreatedAt).reversed())
-                .toList();
+        List<TicketAsset> assets = ticketAssetRepository.findByCurrentOwnerId(currentUserId);
 
         List<Long> resaleListingIds = assets.stream()
                 .map(TicketAsset::getCurrentResaleListingId)
@@ -153,9 +150,11 @@ public class TicketAssetService {
                     .totalTickets(groupAssets.size())
                     .summary(summary)
                     .statusSummary(statusSummary)
+                    .createdAt(firstAsset.getOrderItem().getOrder().getCreatedAt())
                     .tickets(tickets)
                     .build();
-        }).toList();
+        }).sorted(Comparator.comparing(MyTicketGroupResponse::getCreatedAt).reversed())
+                .toList();
     }
 
     @Transactional(readOnly = true)

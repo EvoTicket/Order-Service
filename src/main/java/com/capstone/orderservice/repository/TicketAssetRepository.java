@@ -17,7 +17,11 @@ public interface TicketAssetRepository extends JpaRepository<TicketAsset, Long> 
 
     Optional<TicketAsset> findByOrderItem_Id(Long orderItemId);
 
-    List<TicketAsset> findByCurrentOwnerId(Long currentOwnerId);
+    @Query("SELECT t FROM TicketAsset t " +
+           "JOIN FETCH t.orderItem oi " +
+           "JOIN FETCH oi.order " +
+           "WHERE t.currentOwnerId = :currentOwnerId")
+    List<TicketAsset> findByCurrentOwnerId(@Param("currentOwnerId") Long currentOwnerId);
 
     Optional<TicketAsset> findByIdAndCurrentOwnerId(Long id, Long currentOwnerId);
 

@@ -5,6 +5,7 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 @Data
@@ -20,5 +21,6 @@ public class MyTicketGroupResponse {
     private Integer totalTickets;
     private String summary;
     private String statusSummary;
+    private LocalDateTime createdAt;
     private List<MyTicketItemResponse> tickets;
 }
