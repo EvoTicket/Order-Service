@@ -12,6 +12,8 @@ public class Web3MintWebhookRequest {
     private String operation;
     private String status;
     private String txHash;
+    private Long blockNumber;
+    private String contractAddress;
     private List<TicketResult> tickets; // Support flat structure
     private Integer queuedJobs; // Support flat structure
     private Web3MintData data;
@@ -26,6 +28,7 @@ public class Web3MintWebhookRequest {
         private String metadataURI;
         private JobContext jobContext;
         private ChainCommand chainCommand;
+        private String contractAddress;
         
         // Order-level fields
         private String orderId;

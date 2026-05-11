@@ -134,7 +134,8 @@ public class TicketAssetService {
                         .ticketCode(asset.getTicketCode())
                         .tokenId(asset.getTokenId())
                         .contractAddress(asset.getContractAddress())
-                        .blockNumber(asset.getBlockNumber())
+                        .fromBlock(asset.getFromBlock())
+                        .toBlock(asset.getToBlock())
                         .status(status)
                         .listingCode(listing != null ? listing.getListingCode() : null)
                         .listingPrice(listing != null ? listing.getListingPrice() : null)
@@ -278,7 +279,8 @@ public class TicketAssetService {
                 .tokenId(asset.getTokenId())
                 .txHash(asset.getTxHash())
                 .contractAddress(asset.getContractAddress())
-                .blockNumber(asset.getBlockNumber())
+                .fromBlock(asset.getFromBlock())
+                .toBlock(asset.getToBlock())
                 .currentResaleListingId(asset.getCurrentResaleListingId())
                 .usedAt(asset.getUsedAt())
                 .createdAt(asset.getCreatedAt())
@@ -368,7 +370,8 @@ public class TicketAssetService {
                         ticketResult.getTicketCode(),
                         ticketResult.getTokenId(),
                         ticketResult.getTxHash(),
-                        ticketResult.getBlockNumber(),
+                        ticketResult.getBlockNumber(), // fromBlock = blockNumber
+                        ticketResult.getBlockNumber(), // toBlock = blockNumber
                         ticketResult.getContractAddress(),
                         ticketResult.getChainCommand(),
                         isSuccess,
@@ -390,8 +393,9 @@ public class TicketAssetService {
                     request.getData().getTicketCode(),
                     request.getData().getTokenId(),
                     request.getTxHash(),
-                    null, // blockNumber not at top level for single mint currently
-                    null, // contractAddress not at top level for single mint currently
+                    request.getBlockNumber(), // fromBlock
+                    request.getBlockNumber(), // toBlock
+                    request.getContractAddress() != null ? request.getContractAddress() : request.getData().getContractAddress(),
                     request.getData().getChainCommand(),
                     isSuccess,
                     request.getError()
@@ -430,7 +434,7 @@ public class TicketAssetService {
                 asset.setTxHash(request.getTxHash());
             }
             if (request.getBlockNumber() != null) {
-                asset.setBlockNumber(request.getBlockNumber());
+                asset.setToBlock(request.getBlockNumber());
             }
             if (request.getAddressContract() != null) {
                 asset.setContractAddress(request.getAddressContract());
@@ -439,7 +443,7 @@ public class TicketAssetService {
             // Sync with OrderItem
             if (asset.getOrderItem() != null) {
                 OrderItem item = asset.getOrderItem();
-                if (request.getBlockNumber() != null) item.setBlockNumber(request.getBlockNumber());
+                if (request.getBlockNumber() != null) item.setToBlock(request.getBlockNumber());
                 if (request.getAddressContract() != null) item.setContractAddress(request.getAddressContract());
             }
 
@@ -461,7 +465,7 @@ public class TicketAssetService {
         ticketAssetRepository.save(asset);
     }
 
-    private void handleSingleTicketResult(String ticketCode, String tokenId, String txHash, Long blockNumber, String contractAddress, Web3MintWebhookRequest.ChainCommand chainCommand, boolean isSuccess, String error) {
+    private void handleSingleTicketResult(String ticketCode, String tokenId, String txHash, Long fromBlock, Long toBlock, String contractAddress, Web3MintWebhookRequest.ChainCommand chainCommand, boolean isSuccess, String error) {
         if (ticketCode == null) return;
         
         Optional<TicketAsset> assetOpt = ticketAssetRepository.findByTicketCodeOrAssetCode(ticketCode, ticketCode);
@@ -480,8 +484,11 @@ public class TicketAssetService {
             if (tokenId != null) {
                 asset.setTokenId(tokenId);
             }
-            if (blockNumber != null) {
-                asset.setBlockNumber(blockNumber);
+            if (fromBlock != null) {
+                asset.setFromBlock(fromBlock);
+            }
+            if (toBlock != null) {
+                asset.setToBlock(toBlock);
             }
             if (contractAddress != null) {
                 asset.setContractAddress(contractAddress);
@@ -497,7 +504,8 @@ public class TicketAssetService {
             if (asset.getOrderItem() != null) {
                 OrderItem item = asset.getOrderItem();
                 if (tokenId != null) item.setTokenId(tokenId);
-                if (blockNumber != null) item.setBlockNumber(blockNumber);
+                if (fromBlock != null) item.setFromBlock(fromBlock);
+                if (toBlock != null) item.setToBlock(toBlock);
                 if (contractAddress != null) item.setContractAddress(contractAddress);
             }
 

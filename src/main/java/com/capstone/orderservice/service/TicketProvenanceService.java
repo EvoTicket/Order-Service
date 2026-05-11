@@ -68,7 +68,8 @@ public class TicketProvenanceService {
                                 .price(asset.getOriginalPrice())
                                 .txHash(asset.getTxHash())
                                 .tokenId(asset.getTokenId())
-                                .blockNumber(asset.getBlockNumber())
+                                .fromBlock(asset.getFromBlock())
+                                .toBlock(asset.getToBlock())
                                 .contractAddress(asset.getContractAddress())
                                 .chainStatus(asset.getChainStatus() != null ? asset.getChainStatus().name() : null)
                                 .description(PRIMARY_ISSUED_DESCRIPTION)
@@ -174,7 +175,11 @@ public class TicketProvenanceService {
                         try {
                                 RestClient restClient = RestClient.create(BLOCKCHAIN_API_BASE);
                                 blockchainDto = restClient.get()
-                                                .uri("/api/blockchain/tickets/{tokenId}/provenance", asset.getTokenId())
+                                                .uri(uriBuilder -> uriBuilder
+                                                                .path("/api/blockchain/tickets/{tokenId}/provenance")
+                                                                .queryParam("fromBlock", asset.getFromBlock())
+                                                                .queryParam("toBlock", asset.getToBlock())
+                                                                .build(asset.getTokenId()))
                                                 .retrieve()
                                                 .body(BlockchainProvenanceDto.class);
                         } catch (Exception e) {
@@ -190,7 +195,8 @@ public class TicketProvenanceService {
                                 .onChainStatus(asset.getTokenId() != null ? "recorded" : "pending")
                                 .transactionHash(asset.getTxHash())
                                 .contractAddress(asset.getContractAddress())
-                                .blockNumber(asset.getBlockNumber())
+                                .fromBlock(asset.getFromBlock())
+                                .toBlock(asset.getToBlock())
                                 .lastUpdated(asset.getUpdatedAt() != null
                                                 ? asset.getUpdatedAt().format(DATE_TIME_FORMATTER)
                                                 : null)
@@ -319,7 +325,8 @@ public class TicketProvenanceService {
                                 .price(listing.getListingPrice())
                                 .txHash(asset.getTxHash())
                                 .tokenId(asset.getTokenId())
-                                .blockNumber(asset.getBlockNumber())
+                                .fromBlock(asset.getFromBlock())
+                                .toBlock(asset.getToBlock())
                                 .contractAddress(asset.getContractAddress())
                                 .chainStatus(asset.getChainStatus() != null ? asset.getChainStatus().name() : null)
                                 .description(description)
@@ -365,7 +372,8 @@ public class TicketProvenanceService {
                                 .price(listing.getListingPrice())
                                 .txHash(asset.getTxHash())
                                 .tokenId(asset.getTokenId())
-                                .blockNumber(asset.getBlockNumber())
+                                .fromBlock(asset.getFromBlock())
+                                .toBlock(asset.getToBlock())
                                 .contractAddress(asset.getContractAddress())
                                 .chainStatus(asset.getChainStatus() != null ? asset.getChainStatus().name() : null)
                                 .description(description)

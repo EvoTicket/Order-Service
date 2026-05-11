@@ -45,7 +45,8 @@ public class RichTicketProvenanceResponse {
         private String onChainStatus;
         private String transactionHash;
         private String contractAddress;
-        private Long blockNumber;
+        private Long fromBlock;
+        private Long toBlock;
         private String lastUpdated;
     }
 

@@ -54,8 +54,11 @@ public class TicketProvenance {
     @Column(name = "token_id")
     private String tokenId;
 
-    @Column(name = "block_number")
-    private Long blockNumber;
+    @Column(name = "from_block")
+    private Long fromBlock;
+
+    @Column(name = "to_block")
+    private Long toBlock;
 
     @Column(name = "contract_address")
     private String contractAddress;

@@ -19,7 +19,8 @@ public class MyTicketItemResponse {
     private String ticketCode;
     private String tokenId;
     private String contractAddress;
-    private Long blockNumber;
+    private Long fromBlock;
+    private Long toBlock;
     private String status;
     private String listingCode;
     private BigDecimal listingPrice;

@@ -11,6 +11,8 @@ public class BlockchainProvenanceDto {
     private String currentOwner;
     private Integer totalTransfers;
     private List<BlockchainHistoryEntry> history;
+    private Long fromBlock;
+    private Long toBlock;
 
     @Data
     public static class BlockchainHistoryEntry {
