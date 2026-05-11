@@ -545,8 +545,12 @@ public class ResaleService {
         Map<String, Object> transferPayload = new HashMap<>();
         transferPayload.put("from_userID", String.valueOf(sellerId));
         transferPayload.put("to_userID", String.valueOf(buyerId));
-        transferPayload.put("tokenId", asset.getTokenId());
-        transferPayload.put("transferPrice", listing.getListingPrice());
+        if (asset.getTokenId() != null) {
+            transferPayload.put("tokenId", Long.parseLong(asset.getTokenId()));
+        }
+        if (listing.getListingPrice() != null) {
+            transferPayload.put("transferPrice", listing.getListingPrice().toBigInteger());
+        }
 
         TransactionSynchronizationManager.registerSynchronization(
             new TransactionSynchronization() {
