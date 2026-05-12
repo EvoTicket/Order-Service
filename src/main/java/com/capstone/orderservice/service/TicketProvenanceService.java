@@ -138,6 +138,41 @@ public class TicketProvenanceService {
                                 description);
         }
 
+        @Transactional
+        public void recordTicketUsed(TicketAsset asset, Long checkerId,  String usedAtGateId) {
+                if (asset == null || asset.getId() == null) {
+                        return;
+                }
+
+                boolean alreadyRecorded = ticketProvenanceRepository.existsByTicketAssetIdAndActionType(
+                                asset.getId(),
+                                ProvenanceActionType.CHECKED_IN);
+                if (alreadyRecorded) {
+                        return;
+                }
+
+                String description = "Ticket checked in by checker " + (checkerId != null ? checkerId : "unknown");
+                if(usedAtGateId == null) {
+                        usedAtGateId = " at unknown gate";
+                } else {
+                        usedAtGateId = " at gate " + usedAtGateId;
+                }
+
+                TicketProvenance provenance = TicketProvenance.builder()
+                                .ticketAssetId(asset.getId())
+                                .fromUserId(asset.getCurrentOwnerId())
+                                .toUserId(null)
+                                .actionType(ProvenanceActionType.CHECKED_IN)
+                                .txHash(asset.getTxHash())
+                                .tokenId(asset.getTokenId())
+                                .contractAddress(asset.getContractAddress())
+                                .chainStatus(asset.getChainStatus() != null ? asset.getChainStatus().name() : null)
+                                .description(description + usedAtGateId)
+                                .build();
+
+                ticketProvenanceRepository.save(provenance);
+        }
+
         @Transactional(readOnly = true)
         public RichTicketProvenanceResponse getProvenanceForMyTicket(Long ticketAssetId) {
                 Long currentUserId = jwtUtil.getDataFromAuth().userId();
@@ -260,6 +295,10 @@ public class TicketProvenanceService {
                         case RESALE_PURCHASED -> {
                                 type = "RESOLD";
                                 details.put("status", "sold");
+                        }
+                        case CHECKED_IN -> {
+                                type = "USED";
+                                details.put("description", prov.getDescription());
                         }
                         // Add other cases as needed
                 }

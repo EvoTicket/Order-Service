@@ -69,6 +69,7 @@ public class ResaleService {
     private final ResaleListingStatsService resaleListingStatsService;
     private final JwtUtil jwtUtil;
     private final PaymentFeignClient paymentFeignClient;
+    private final TicketAssetService ticketAssetService;
     
 
     @Transactional(readOnly = true)
