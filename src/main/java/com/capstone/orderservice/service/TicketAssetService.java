@@ -8,6 +8,7 @@ import com.capstone.orderservice.dto.response.ResaleEligibilityResponse;
 import com.capstone.orderservice.dto.response.TicketAssetResponse;
 import com.capstone.orderservice.dto.request.Web3MintWebhookRequest;
 import com.capstone.orderservice.dto.request.Web3TransferWebhookRequest;
+import com.capstone.orderservice.dto.event.TicketUsedEvent;
 import com.capstone.orderservice.entity.Order;
 import com.capstone.orderservice.entity.OrderItem;
 import com.capstone.orderservice.entity.TicketAsset;
@@ -17,6 +18,8 @@ import com.capstone.orderservice.enums.TicketAccessStatus;
 import com.capstone.orderservice.enums.TicketChainStatus;
 import com.capstone.orderservice.exception.AppException;
 import com.capstone.orderservice.exception.ErrorCode;
+import com.capstone.orderservice.dto.event.TicketAccessSyncEvent;
+import com.capstone.orderservice.producer.RedisStreamProducer;
 import com.capstone.orderservice.repository.TicketAssetRepository;
 import com.capstone.orderservice.repository.ResaleListingRepository;
 import com.capstone.orderservice.entity.ResaleListing;
@@ -28,6 +31,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.stream.Collectors;
@@ -45,6 +49,7 @@ public class TicketAssetService {
     private final JwtUtil jwtUtil;
     private final TicketProvenanceService ticketProvenanceService;
     private final ResaleListingRepository resaleListingRepository;
+    private final RedisStreamProducer redisStreamProducer;
 
     @Transactional
     public void issueTicketsForConfirmedOrder(Order order) {
@@ -68,6 +73,7 @@ public class TicketAssetService {
             TicketAsset asset = buildTicketAsset(order, item, eventMetadata.orElse(null));
             TicketAsset savedAsset = ticketAssetRepository.save(asset);
             ticketProvenanceService.recordPrimaryIssued(savedAsset);
+            syncTicketAccess(savedAsset);
         }
     }
 
@@ -462,7 +468,8 @@ public class TicketAssetService {
             log.error("Web3 transfer failed for ticket: {}. Error: {}", tokenId, request.getError());
         }
 
-        ticketAssetRepository.save(asset);
+        TicketAsset savedAsset = ticketAssetRepository.save(asset);
+        syncTicketAccess(savedAsset);
     }
 
     private void handleSingleTicketResult(String ticketCode, String tokenId, String txHash, Long fromBlock, Long toBlock, String contractAddress, Web3MintWebhookRequest.ChainCommand chainCommand, boolean isSuccess, String error) {
@@ -515,6 +522,46 @@ public class TicketAssetService {
             log.error("Web3 mint failed for ticket: {}. Error: {}", ticketCode, error);
         }
 
+        TicketAsset savedAsset = ticketAssetRepository.save(asset);
+        syncTicketAccess(savedAsset);
+    }
+
+    public void syncTicketAccess(TicketAsset asset) {
+        try {
+            TicketAccessSyncEvent event = TicketAccessSyncEvent.builder()
+                    .ticketAssetId(asset.getId())
+                    .ticketCode(asset.getTicketCode())
+                    .eventId(asset.getEventId())
+                    .showtimeId(asset.getShowtimeId())
+                    .currentOwnerId(asset.getCurrentOwnerId())
+                    .accessStatus(asset.getAccessStatus())
+                    .qrVersion(asset.getQrSecretVersion())
+                    .ticketTypeName(asset.getTicketTypeName())
+                    .gatePolicySnapshot(null) // Can be enriched later from Inventory
+                    .build();
+
+            redisStreamProducer.sendMessage("ticket-access-sync", event);
+            log.info("Sent sync event for ticketAssetId: {}", asset.getId());
+        } catch (Exception e) {
+            log.error("Failed to send ticket sync event for assetId: {}", asset.getId(), e);
+        }
+    }
+
+    @Transactional
+    public void handleTicketUsedEvent(TicketUsedEvent event) {
+        TicketAsset asset = ticketAssetRepository.findById(event.getTicketAssetId())
+                .orElseThrow(() -> new AppException(ErrorCode.RESOURCE_NOT_FOUND, "Ticket not found"));
+
+        if (asset.getAccessStatus() == TicketAccessStatus.USED) {
+            log.info("Ticket {} is already marked as USED, skipping", event.getTicketAssetId());
+            return;
+        }
+
+        asset.setAccessStatus(TicketAccessStatus.USED);
+        asset.setUsedAt(LocalDateTime.ofInstant(event.getUsedAt(), ZoneId.systemDefault()));
         ticketAssetRepository.save(asset);
+
+        ticketProvenanceService.recordTicketUsed(asset, event.getUsedByCheckerId(), event.getUsedAtGateId());
+        log.info("Ticket {} marked as USED via sync event", event.getTicketAssetId());
     }
 }

@@ -2,6 +2,7 @@ package com.capstone.orderservice.consumer;
 
 import com.capstone.orderservice.dto.event.CommitTicketEvent;
 import com.capstone.orderservice.dto.event.PaymentSuccessEvent;
+import com.capstone.orderservice.dto.event.TicketUsedEvent;
 import com.capstone.orderservice.exception.AppException;
 import com.capstone.orderservice.exception.ErrorCode;
 import com.capstone.orderservice.service.OrderService;
@@ -32,11 +33,12 @@ public class RedisStreamConsumer implements StreamListener<String, MapRecord<Str
     private final StreamMessageListenerContainer<String, MapRecord<String, String, String>> listenerContainer;
     private final RedisTemplate<String, Object> redisTemplate;
     private final OrderService orderService;
+    private final com.capstone.orderservice.service.TicketAssetService ticketAssetService;
     private final ObjectMapper objectMapper = new ObjectMapper();
-    private static final List<String> LIST_STREAM_KEY = List.of(
             "payment-success",
             "commit-ticket-success",
-            "commit-ticket-failed"
+            "commit-ticket-failed",
+            "ticket-used"
     );
     private static final String CONSUMER_GROUP = "order-service-group";
     private static final String CONSUMER_NAME = "order";
@@ -99,6 +101,7 @@ public class RedisStreamConsumer implements StreamListener<String, MapRecord<Str
             case "payment-success" -> handlePaymentSuccessEvent(payload);
             case "commit-ticket-success" -> handleCommitSuccessEvent(payload);
             case "commit-ticket-failed" -> handleCommitFailedEvent(payload);
+            case "ticket-used" -> handleTicketUsedEvent(payload);
             default -> throw new AppException(ErrorCode.INTERNAL_SERVER_ERROR, "Unknown stream: " + stream);
         }
     }
@@ -128,9 +131,17 @@ public class RedisStreamConsumer implements StreamListener<String, MapRecord<Str
 
             orderService.commitTicket(paymentSuccessEvent);
             log.info("successfully for: {}", PaymentSuccessEvent.class);
-
         } catch (Exception e) {
             log.error("Error processing OTP event", e);
+        }
+    }
+
+    private void handleTicketUsedEvent(String payload) {
+        try {
+            TicketUsedEvent event = objectMapper.readValue(payload, TicketUsedEvent.class);
+            ticketAssetService.handleTicketUsedEvent(event);
+        } catch (Exception e) {
+            log.error("Error processing ticket used event", e);
         }
     }
 

@@ -512,7 +512,8 @@ public class ResaleService {
             Long finalizedBuyerId = buyerId != null ? buyerId : order.getUserId();
             if (finalizedBuyerId != null && !finalizedBuyerId.equals(asset.getCurrentOwnerId())) {
                 asset.setCurrentOwnerId(finalizedBuyerId);
-                ticketAssetRepository.save(asset);
+                TicketAsset savedAsset = ticketAssetRepository.save(asset);
+                ticketAssetService.syncTicketAccess(savedAsset);
             }
             return;
         }
@@ -533,11 +534,12 @@ public class ResaleService {
 
         order.setOrderStatus(OrderStatus.CONFIRMED);
 
-        ticketAssetRepository.save(asset);
+        TicketAsset savedAsset = ticketAssetRepository.save(asset);
         resaleListingRepository.save(listing);
         orderRepository.save(order);
 
-        ticketProvenanceService.recordResalePurchased(asset, listing, order);
+        ticketAssetService.syncTicketAccess(savedAsset);
+        ticketProvenanceService.recordResalePurchased(savedAsset, listing, order);
         ticketProvenanceService.recordOwnershipTransferred(asset, listing, order, sellerId, buyerId);
         ticketProvenanceService.recordQrRotated(asset, listing, order, sellerId, buyerId, oldQrVersion, newQrVersion);
 
