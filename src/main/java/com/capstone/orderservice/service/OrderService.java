@@ -72,7 +72,7 @@ public class OrderService {
         }
 
         Long currentUserId = jwtUtil.getDataFromAuth().userId();
-        if (!String.valueOf(currentUserId).equals(sessionData.getUserId())) {
+        if (!Objects.equals(currentUserId, sessionData.getUserId())) {
             throw new AppException(ErrorCode.UNAUTHORIZED, "User không khớp với booking session");
         }
 
