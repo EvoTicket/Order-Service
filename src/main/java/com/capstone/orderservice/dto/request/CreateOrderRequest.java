@@ -35,5 +35,5 @@ public class CreateOrderRequest {
     @Builder.Default
     private String locale = "vi";
 
-    private List<Long> voucherIds;
+    private String voucherCode;
 }

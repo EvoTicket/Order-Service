@@ -70,19 +70,19 @@ public class Voucher {
 
     public void validateVoucher() {
         if (this.getVoucherStatus() != VoucherStatus.ACTIVE) {
-            throw new AppException(ErrorCode.INTERNAL_SERVER_ERROR, "Voucher không khả dụng");
+            throw new AppException(ErrorCode.BAD_REQUEST, "Voucher không khả dụng");
         }
 
         LocalDateTime now = LocalDateTime.now();
         if (now.isBefore(this.getStartDate())) {
-            throw new AppException(ErrorCode.INTERNAL_SERVER_ERROR, "Voucher chưa có hiệu lực");
+            throw new AppException(ErrorCode.BAD_REQUEST, "Voucher chưa có hiệu lực");
         }
         if (now.isAfter(this.getEndDate())) {
-            throw new AppException(ErrorCode.INTERNAL_SERVER_ERROR, "Voucher đã hết hạn");
+            throw new AppException(ErrorCode.BAD_REQUEST, "Voucher đã hết hạn");
         }
 
         if (this.getQuantityUsed() >= this.getQuantityTotal()) {
-            throw new AppException(ErrorCode.INTERNAL_SERVER_ERROR, "Voucher đã hết lượt sử dụng");
+            throw new AppException(ErrorCode.BAD_REQUEST, "Voucher đã hết lượt sử dụng");
         }
     }
 }

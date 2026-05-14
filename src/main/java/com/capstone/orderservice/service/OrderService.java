@@ -136,7 +136,7 @@ public class OrderService {
         order.setTotalAmount(totalAmount);
         order.setFinalAmount(totalAmount);
 
-        voucherService.applyVouchers(order, request.getVoucherIds());
+        voucherService.applyVoucher(order, request.getVoucherCode());
 
         orderRepository.save(order);
 

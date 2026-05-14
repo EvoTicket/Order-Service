@@ -2,8 +2,10 @@ package com.capstone.orderservice.controller;
 
 import com.capstone.orderservice.dto.BasePageResponse;
 import com.capstone.orderservice.dto.BaseResponse;
+import com.capstone.orderservice.dto.request.ApplyVoucherRequest;
 import com.capstone.orderservice.dto.request.CreateVoucherRequest;
 import com.capstone.orderservice.dto.request.UpdateVoucherRequest;
+import com.capstone.orderservice.dto.response.ApplyVoucherResponse;
 import com.capstone.orderservice.dto.response.VoucherResponse;
 import com.capstone.orderservice.service.VoucherService;
 import jakarta.validation.Valid;
@@ -88,5 +90,13 @@ public class VoucherController {
     @DeleteMapping("/{voucherId}")
     public ResponseEntity<BaseResponse<Boolean>> deleteVoucher(@PathVariable Long voucherId) {
         return ResponseEntity.ok(BaseResponse.ok("Xóa voucher thành công",  voucherService.deleteVoucher(voucherId)));
+    }
+
+    @Operation(summary = "Áp dụng voucher", description = "Áp dụng mã giảm giá cho phiên đặt vé.")
+    @PostMapping("/apply-voucher")
+    public ResponseEntity<BaseResponse<ApplyVoucherResponse>> applyVoucher(
+            @Valid @RequestBody ApplyVoucherRequest request) {
+        ApplyVoucherResponse response = voucherService.applyVoucher(request);
+        return ResponseEntity.ok(BaseResponse.ok("Áp dụng voucher thành công", response));
     }
 }
