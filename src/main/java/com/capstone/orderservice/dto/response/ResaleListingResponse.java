@@ -27,6 +27,7 @@ public class ResaleListingResponse {
     private LocalDateTime eventEndTime;
     private String venueName;
     private String venueAddress;
+    private String bannerImage;
     private Long ticketTypeId;
     private String ticketTypeName;
     private Long sellerId;
