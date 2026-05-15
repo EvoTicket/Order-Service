@@ -140,7 +140,7 @@ public class OrderService {
 
         orderRepository.save(order);
 
-        OrderInternalResponse requestToPayment = OrderInternalResponse.fromRequest(request, orderCode, totalAmount,
+        OrderInternalResponse requestToPayment = OrderInternalResponse.fromRequest(request, orderCode, order.getFinalAmount(),
                 listTicketTypesInternalResponse);
         log.info("locale : {}", requestToPayment.getLocale());
 
