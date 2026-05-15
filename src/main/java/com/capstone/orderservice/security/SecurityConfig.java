@@ -59,6 +59,7 @@ public class SecurityConfig {
                         .requestMatchers("/api/v1/webhook/web3/transfer-ticket").permitAll()
 
                         .requestMatchers(HttpMethod.GET, "/api/locations/**").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/v1/orders/cancel-callback").permitAll()
 
                         .anyRequest().authenticated())
                 .addFilterBefore(internalAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
