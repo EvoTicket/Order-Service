@@ -16,6 +16,9 @@ import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.beans.factory.annotation.Value;
+import jakarta.servlet.http.HttpServletResponse;
+import java.io.IOException;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 
@@ -25,6 +28,9 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 @Tag(name = "Quản lý Đơn hàng", description = "Các endpoint để tạo, quản lý và tra cứu đơn hàng")
 public class OrderController {
     private final OrderService orderService;
+    
+    @Value("${front-end.domain}")
+    private String frontendDomain;
 
     @Operation(summary = "Tạo đơn hàng mới", description = "Tạo một đơn hàng mới cho vé sự kiện và trả về link thanh toán.")
     @PostMapping
@@ -102,5 +108,21 @@ public class OrderController {
     public ResponseEntity<BaseResponse<Boolean>> cancelOrder(@PathVariable String orderCode) {
         orderService.cancelOrder(orderCode);
         return ResponseEntity.ok(BaseResponse.ok("Hủy đơn hàng thành công", true));
+    }
+
+    @Operation(summary = "Callback khi hủy thanh toán", description = "Xử lý hủy đơn hàng và redirect về trang kết quả ở frontend.")
+    @GetMapping("/cancel-callback")
+    public void handleCancelCallback(
+            @RequestParam String orderCode,
+            @RequestParam Long eventId,
+            @RequestParam String locale,
+            HttpServletResponse response) throws IOException {
+        try {
+            orderService.cancelOrder(orderCode);
+        } catch (Exception e) {
+            // Log error and still redirect to ensure user doesn't get stuck
+        }
+        String redirectUrl = frontendDomain + "/" + locale + "/user/events/" + eventId + "/payment/result?status=CANCELLED&orderCode=" + orderCode;
+        response.sendRedirect(redirectUrl);
     }
 }

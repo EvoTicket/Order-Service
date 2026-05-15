@@ -91,3 +91,6 @@ management:
 logging:
   pattern:
     level: "%5p [traceId=%X{traceId}, spanId=%X{spanId}]"
+
+front-end:
+  domain: ${FE_DOMAIN}
