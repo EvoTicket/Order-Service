@@ -25,4 +25,7 @@ public interface InventoryFeignClient {
 
     @GetMapping("/event/{ticketTypeId}")
     BaseResponse<EventDetailInternalResponse> getEventDetailsByTicketTypeId(@PathVariable Long ticketTypeId);
+
+    @PostMapping("/ticket-types/details")
+    BaseResponse<List<TicketTypeInternalResponse>> getTicketDetails(@RequestBody List<Long> ticketTypeIds);
 }

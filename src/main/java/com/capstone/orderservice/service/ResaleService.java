@@ -1,7 +1,9 @@
 package com.capstone.orderservice.service;
 
+import com.capstone.orderservice.client.InventoryFeignClient;
 import com.capstone.orderservice.client.PaymentFeignClient;
 import com.capstone.orderservice.client.PaymentTransactionResponse;
+import com.capstone.orderservice.client.TicketTypeInternalResponse;
 import com.capstone.orderservice.dto.BaseResponse;
 import com.capstone.orderservice.dto.request.CreateResaleListingRequest;
 import com.capstone.orderservice.dto.request.ResaleCheckoutRequest;
@@ -70,6 +72,7 @@ public class ResaleService {
     private final JwtUtil jwtUtil;
     private final PaymentFeignClient paymentFeignClient;
     private final TicketAssetService ticketAssetService;
+    private final InventoryFeignClient inventoryFeignClient;
     
 
     @Transactional(readOnly = true)
@@ -209,8 +212,46 @@ public class ResaleService {
                 sort.and(pageable.getSort())
         );
 
-        return resaleListingRepository.findAll(spec, sortedPageable)
-                .map(ResaleListingResponse::fromEntity);
+        Page<ResaleListing> listingsPage = resaleListingRepository.findAll(spec, sortedPageable);
+        
+        if (listingsPage.isEmpty()) {
+            return Page.empty(sortedPageable);
+        }
+
+        // Fetch ticket type details from inventory service
+        List<Long> ticketTypeIds = listingsPage.getContent().stream()
+                .map(l -> l.getTicketAsset().getTicketTypeId())
+                .distinct()
+                .toList();
+
+        Map<Long, TicketTypeInternalResponse> ticketDetailsMap = new HashMap<>();
+        try {
+            BaseResponse<List<TicketTypeInternalResponse>> response = inventoryFeignClient.getTicketDetails(ticketTypeIds);
+            if (response != null && response.getData() != null) {
+                response.getData().forEach(d -> ticketDetailsMap.put(d.getTicketTypeId(), d));
+            }
+        } catch (Exception e) {
+            log.error("Failed to fetch ticket details from inventory service", e);
+        }
+
+        return listingsPage.map(listing -> {
+            ResaleListingResponse response = ResaleListingResponse.fromEntity(listing);
+            TicketTypeInternalResponse details = ticketDetailsMap.get(listing.getTicketAsset().getTicketTypeId());
+            if (details != null) {
+                response.setEventId(details.getEventId());
+                response.setEventName(details.getEventName());
+                response.setShowtimeId(details.getShowtimeId());
+                response.setEventStartTime(details.getEventStartTime());
+                response.setEventEndTime(details.getEventEndTime());
+                response.setVenueName(details.getVenueName());
+                response.setVenueAddress(details.getVenueAddress());
+                response.setBannerImage(details.getBannerImage());
+                response.setTicketTypeId(details.getTicketTypeId());
+                response.setTicketTypeName(details.getTicketTypeName());
+                response.setOriginalPrice(details.getOriginalPrice());
+            }
+            return response;
+        });
     }
 
     @Transactional
@@ -226,7 +267,34 @@ public class ResaleService {
         // Increment view count asynchronously via separate service
         resaleListingStatsService.incrementListingViewCount(listing.getId());
 
-        return ResaleListingResponse.fromEntity(listing);
+        // Fetch ticket type details from inventory service
+        TicketTypeInternalResponse details = null;
+        try {
+            BaseResponse<List<TicketTypeInternalResponse>> response = inventoryFeignClient.getTicketDetails(
+                    List.of(listing.getTicketAsset().getTicketTypeId())
+            );
+            if (response != null && response.getData() != null && !response.getData().isEmpty()) {
+                details = response.getData().getFirst();
+            }
+        } catch (Exception e) {
+            log.error("Failed to fetch ticket details from inventory service", e);
+        }
+
+        ResaleListingResponse response = ResaleListingResponse.fromEntity(listing);
+        if (details != null) {
+            response.setEventId(details.getEventId());
+            response.setEventName(details.getEventName());
+            response.setShowtimeId(details.getShowtimeId());
+            response.setEventStartTime(details.getEventStartTime());
+            response.setEventEndTime(details.getEventEndTime());
+            response.setVenueName(details.getVenueName());
+            response.setVenueAddress(details.getVenueAddress());
+            response.setBannerImage(details.getBannerImage());
+            response.setTicketTypeId(details.getTicketTypeId());
+            response.setTicketTypeName(details.getTicketTypeName());
+            response.setOriginalPrice(details.getOriginalPrice());
+        }
+        return response;
     }
 
 

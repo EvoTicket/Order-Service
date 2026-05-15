@@ -1,5 +1,6 @@
 package com.capstone.orderservice.dto.response;
 
+import com.capstone.orderservice.client.TicketTypeInternalResponse;
 import com.capstone.orderservice.entity.ResaleListing;
 import com.capstone.orderservice.entity.TicketAsset;
 import com.capstone.orderservice.enums.ResaleListingStatus;
@@ -47,20 +48,15 @@ public class ResaleListingResponse {
     private Long viewCount;
 
     public static ResaleListingResponse fromEntity(ResaleListing listing) {
+        return fromEntity(listing, null);
+    }
+
+    public static ResaleListingResponse fromEntity(ResaleListing listing, TicketTypeInternalResponse details) {
         TicketAsset asset = listing.getTicketAsset();
-        return ResaleListingResponse.builder()
+        ResaleListingResponseBuilder builder = ResaleListingResponse.builder()
                 .listingId(listing.getId())
                 .listingCode(listing.getListingCode())
                 .ticketAssetId(asset.getId())
-                .eventId(asset.getEventId())
-                .eventName(asset.getEventName())
-                .showtimeId(asset.getShowtimeId())
-                .eventStartTime(asset.getEventStartTime())
-                .eventEndTime(asset.getEventEndTime())
-                .venueName(asset.getVenueName())
-                .venueAddress(asset.getVenueAddress())
-                .ticketTypeId(asset.getTicketTypeId())
-                .ticketTypeName(asset.getTicketTypeName())
                 .sellerId(listing.getSellerId())
                 .originalPrice(listing.getOriginalPrice())
                 .listingPrice(listing.getListingPrice())
@@ -77,7 +73,31 @@ public class ResaleListingResponse {
                 .contractAddress(asset.getContractAddress())
                 .fromBlock(asset.getFromBlock())
                 .toBlock(asset.getToBlock())
-                .viewCount(listing.getViewCount())
-                .build();
+                .viewCount(listing.getViewCount());
+
+        if (details != null) {
+            builder.eventId(details.getEventId())
+                    .eventName(details.getEventName())
+                    .showtimeId(details.getShowtimeId())
+                    .eventStartTime(details.getEventStartTime())
+                    .eventEndTime(details.getEventEndTime())
+                    .venueName(details.getVenueName())
+                    .venueAddress(details.getVenueAddress())
+                    .bannerImage(details.getBannerImage())
+                    .ticketTypeId(details.getTicketTypeId())
+                    .ticketTypeName(details.getTicketTypeName());
+        } else {
+            builder.eventId(asset.getEventId())
+                    .eventName(asset.getEventName())
+                    .showtimeId(asset.getShowtimeId())
+                    .eventStartTime(asset.getEventStartTime())
+                    .eventEndTime(asset.getEventEndTime())
+                    .venueName(asset.getVenueName())
+                    .venueAddress(asset.getVenueAddress())
+                    .ticketTypeId(asset.getTicketTypeId())
+                    .ticketTypeName(asset.getTicketTypeName());
+        }
+
+        return builder.build();
     }
 }
