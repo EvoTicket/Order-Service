@@ -150,7 +150,7 @@ public class TicketAsset {
             accessStatus = TicketAccessStatus.VALID;
         }
         if (chainStatus == null) {
-            chainStatus = TicketChainStatus.WEB2_ONLY;
+            chainStatus = TicketChainStatus.MINT_PENDING;
         }
     }
 

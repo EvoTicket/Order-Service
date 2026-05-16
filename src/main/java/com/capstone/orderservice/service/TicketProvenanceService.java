@@ -185,7 +185,7 @@ public class TicketProvenanceService {
 
         try {
             RestClient restClient = RestClient.create(BLOCKCHAIN_API_BASE);
-            return restClient.get()
+            RichTicketProvenanceResponse response = restClient.get()
                     .uri(uriBuilder -> uriBuilder
                             .path("/api/blockchain/tickets/{tokenId}/history")
                             .queryParam("fromBlock", asset.getFromBlock())
@@ -193,6 +193,31 @@ public class TicketProvenanceService {
                             .build(asset.getTokenId()))
                     .retrieve()
                     .body(RichTicketProvenanceResponse.class);
+
+            if (response != null) {
+                RichTicketProvenanceResponse.TicketInfo ticketInfo = RichTicketProvenanceResponse.TicketInfo.builder()
+                        .eventName(asset.getEventName())
+                        .eventDate(asset.getEventStartTime() != null
+                                ? asset.getEventStartTime().format(DateTimeFormatter.ofPattern("dd/MM/yyyy"))
+                                : "")
+                        .eventTime(asset.getEventStartTime() != null
+                                ? asset.getEventStartTime().format(DateTimeFormatter.ofPattern("HH:mm"))
+                                : "")
+                        .venue(asset.getVenueName())
+                        .ticketType(asset.getTicketTypeName())
+                        .seat(asset.getTicketTypeName())
+                        .ticketCode(asset.getTicketCode())
+                        .tokenId(asset.getTokenId() != null ? asset.getTokenId() : null)
+                        .status(asset.getAccessStatus() != null ? asset.getAccessStatus().name() : "Unknown")
+                        .originalPrice(asset.getOriginalPrice() != null
+                                ? String.format("%,.0fđ", asset.getOriginalPrice().doubleValue()).replace(',', '.')
+                                : "0đ")
+                        .mintStatus(asset.getChainStatus() != null ? asset.getChainStatus().name() : "N/A")
+                        .checkInStatus(asset.getUsedAt() != null ? "used" : "unused")
+                        .build();
+                response.setTicket(ticketInfo);
+            }
+            return response;
         } catch (Exception e) {
             log.error("Failed to fetch blockchain history for tokenId: {}", asset.getTokenId(), e);
             throw new AppException(ErrorCode.INTERNAL_SERVER_ERROR, "Failed to fetch blockchain provenance");
