@@ -34,6 +34,10 @@ import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import com.capstone.orderservice.repository.ResaleListingSpecification;
+import org.springframework.data.redis.core.StringRedisTemplate;
+import com.capstone.orderservice.dto.response.ResaleReserveResponse;
+import java.util.concurrent.TimeUnit;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.web.client.RestClient;
@@ -56,8 +60,13 @@ import java.util.concurrent.ThreadLocalRandom;
 @RequiredArgsConstructor
 @Slf4j
 public class ResaleService {
+    private final StringRedisTemplate redisTemplate;
+    private static final String RESALE_RESERVATION_KEY_PREFIX = "resale:reservation:";
+    private static final long RESALE_RESERVATION_TTL_MINUTES = 5;
+
     private static final List<ResaleListingStatus> ACTIVE_LISTING_STATUSES = List.of(
             ResaleListingStatus.ACTIVE,
+            ResaleListingStatus.RESERVED,
             ResaleListingStatus.PAYMENT_PENDING
     );
 
@@ -298,17 +307,65 @@ public class ResaleService {
 
 
     @Transactional
-    public ResaleCheckoutResponse createResaleCheckout(String listingCode, ResaleCheckoutRequest request) {
-        Long buyerId = jwtUtil.getDataFromAuth().userId();
+    public ResaleReserveResponse reserve(String listingCode) {
+        Long userId = jwtUtil.getDataFromAuth().userId();
         ResaleListing listing = resaleListingRepository.findByListingCodeForUpdate(listingCode)
                 .orElseThrow(() -> new AppException(ErrorCode.RESOURCE_NOT_FOUND, "Resale listing not found"));
 
         if (listing.getStatus() != ResaleListingStatus.ACTIVE) {
-            throw new AppException(ErrorCode.BAD_REQUEST, "Only active resale listings can be checked out");
+            // Check if it's reserved but expired
+            if (listing.getStatus() == ResaleListingStatus.RESERVED && 
+                listing.getReservedUntil() != null && 
+                listing.getReservedUntil().isBefore(LocalDateTime.now())) {
+                log.info("Listing {} reservation expired; allowing new reservation", listingCode);
+            } else {
+                throw new AppException(ErrorCode.BAD_REQUEST, "Listing is not active and cannot be reserved");
+            }
         }
 
-        if (buyerId.equals(listing.getSellerId())) {
-            throw new AppException(ErrorCode.BAD_REQUEST, "Seller cannot checkout their own resale listing");
+        if (userId.equals(listing.getSellerId())) {
+            throw new AppException(ErrorCode.BAD_REQUEST, "Seller cannot reserve their own listing");
+        }
+
+        String sessionId = UUID.randomUUID().toString();
+        String redisKey = RESALE_RESERVATION_KEY_PREFIX + sessionId;
+        LocalDateTime reservedUntil = LocalDateTime.now().plusMinutes(RESALE_RESERVATION_TTL_MINUTES);
+
+        listing.setStatus(ResaleListingStatus.RESERVED);
+        listing.setReservationSessionId(sessionId);
+        listing.setReservedUntil(reservedUntil);
+        resaleListingRepository.save(listing);
+
+        redisTemplate.opsForValue().set(redisKey, listingCode, RESALE_RESERVATION_TTL_MINUTES, TimeUnit.MINUTES);
+
+        return ResaleReserveResponse.builder()
+                .resaleSessionId(sessionId)
+                .listingCode(listingCode)
+                .reservedUntil(reservedUntil)
+                .build();
+    }
+
+    @Transactional
+    public ResaleCheckoutResponse createResaleCheckout(ResaleCheckoutRequest request) {
+        String sessionId = request.getResaleSessionId();
+        if (sessionId == null || sessionId.isBlank()) {
+            throw new AppException(ErrorCode.BAD_REQUEST, "Resale session ID is required");
+        }
+
+        String redisKey = RESALE_RESERVATION_KEY_PREFIX + sessionId;
+        String listingCode = redisTemplate.opsForValue().get(redisKey);
+
+        if (listingCode == null) {
+            throw new AppException(ErrorCode.BAD_REQUEST, "Reservation has expired or is invalid");
+        }
+
+        Long buyerId = jwtUtil.getDataFromAuth().userId();
+        ResaleListing listing = resaleListingRepository.findByListingCodeForUpdate(listingCode)
+                .orElseThrow(() -> new AppException(ErrorCode.RESOURCE_NOT_FOUND, "Resale listing not found"));
+
+        if (listing.getStatus() != ResaleListingStatus.RESERVED || 
+            !sessionId.equals(listing.getReservationSessionId())) {
+             throw new AppException(ErrorCode.BAD_REQUEST, "Listing is no longer reserved for this session");
         }
 
         TicketAsset asset = ticketAssetRepository.findByIdForUpdate(listing.getTicketAsset().getId())
@@ -322,11 +379,14 @@ public class ResaleService {
         listing.setStatus(ResaleListingStatus.PAYMENT_PENDING);
         listing.setBuyerId(buyerId);
         listing.setPaymentOrder(savedOrder);
-        ResaleListing savedListing = resaleListingRepository.save(listing);
+        resaleListingRepository.save(listing);
+
+        // Session is kept until payment success or expiration
+        // redisTemplate.delete(redisKey); 
 
         return ResaleCheckoutResponse.builder()
-                .listingCode(savedListing.getListingCode())
-                .listingId(savedListing.getId())
+                .listingCode(listing.getListingCode())
+                .listingId(listing.getId())
                 .ticketAssetId(asset.getId())
                 .orderId(savedOrder.getId())
                 .orderCode(savedOrder.getOrderCode())
@@ -334,12 +394,30 @@ public class ResaleService {
                 .orderStatus(savedOrder.getOrderStatus())
                 .paymentMethod(savedOrder.getPaymentMethod())
                 .amount(savedOrder.getFinalAmount())
-                .listingPrice(savedListing.getListingPrice())
-                .platformFeeAmount(savedListing.getPlatformFeeAmount())
-                .sellerPayoutAmount(savedListing.getSellerPayoutAmount())
-                .status(savedListing.getStatus())
+                .listingPrice(listing.getListingPrice())
+                .platformFeeAmount(listing.getPlatformFeeAmount())
+                .sellerPayoutAmount(listing.getSellerPayoutAmount())
+                .status(listing.getStatus())
                 .message("Resale checkout order created. Awaiting payment.")
                 .build();
+    }
+
+    @Scheduled(fixedRate = 60000) // Run every minute
+    @Transactional
+    public void releaseExpiredReservations() {
+        LocalDateTime now = LocalDateTime.now();
+        List<ResaleListing> expiredReservations = resaleListingRepository.findAllByStatusAndReservedUntilBefore(
+                ResaleListingStatus.RESERVED, now);
+
+        if (!expiredReservations.isEmpty()) {
+            log.info("Releasing {} expired resale reservations", expiredReservations.size());
+            for (ResaleListing listing : expiredReservations) {
+                listing.setStatus(ResaleListingStatus.ACTIVE);
+                listing.setReservationSessionId(null);
+                listing.setReservedUntil(null);
+            }
+            resaleListingRepository.saveAll(expiredReservations);
+        }
     }
 
     @Transactional
@@ -605,6 +683,9 @@ public class ResaleService {
         resaleListingRepository.save(listing);
         orderRepository.save(order);
 
+        // Cleanup reservation session upon successful payment
+        cleanupResaleSession(listing);
+
         ticketAssetService.syncTicketAccess(savedAsset);
         ticketProvenanceService.recordResalePurchased(savedAsset, listing, order);
         ticketProvenanceService.recordOwnershipTransferred(asset, listing, order, sellerId, buyerId);
@@ -640,6 +721,25 @@ public class ResaleService {
                 }
             }
         );
+    }
+
+    @Transactional
+    public void finalizePaidResaleOrderSession(String orderCode) {
+        Order order = orderRepository.findByOrderCode(orderCode)
+                .orElseThrow(() -> new AppException(ErrorCode.RESOURCE_NOT_FOUND, "Order not found"));
+        
+        resaleListingRepository.findByPaymentOrder_IdForUpdate(order.getId()).ifPresent(listing -> {
+            cleanupResaleSession(listing);
+            resaleListingRepository.save(listing);
+        });
+    }
+
+    private void cleanupResaleSession(ResaleListing listing) {
+        if (listing.getReservationSessionId() != null) {
+            redisTemplate.delete(RESALE_RESERVATION_KEY_PREFIX + listing.getReservationSessionId());
+            listing.setReservationSessionId(null);
+            listing.setReservedUntil(null);
+        }
     }
 
 

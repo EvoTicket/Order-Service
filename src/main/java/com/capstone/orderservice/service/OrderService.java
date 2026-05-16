@@ -153,7 +153,8 @@ public class OrderService {
                 .orElseThrow(() -> new AppException(ErrorCode.RESOURCE_NOT_FOUND, "Order not found"));
 
         if (order.getOrderType() == OrderType.RESALE) {
-            log.info("Order {} is a resale order; skipping markPaid as it is handled by ResaleService", orderCode);
+            log.info("Order {} is a resale order; handling resale session cleanup", orderCode);
+            resaleService.finalizePaidResaleOrderSession(orderCode);
             return;
         }
 

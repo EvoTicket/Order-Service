@@ -12,8 +12,10 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.time.LocalDateTime;
 import java.util.Collection;
 import java.math.BigDecimal;
+import java.util.List;
 import java.util.Optional;
 
 @Repository
@@ -35,4 +37,8 @@ public interface ResaleListingRepository extends JpaRepository<ResaleListing, Lo
     @org.springframework.data.jpa.repository.Modifying
     @Query("UPDATE ResaleListing r SET r.viewCount = r.viewCount + 1 WHERE r.id = :id")
     void incrementViewCount(@Param("id") Long id);
+
+    List<ResaleListing> findAllByStatusAndReservedUntilBefore(ResaleListingStatus status, LocalDateTime now);
+
+    Optional<ResaleListing> findByReservationSessionId(String sessionId);
 }

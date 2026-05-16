@@ -24,8 +24,8 @@ public class ResaleCheckoutFacade {
     private final PaymentFeignClient paymentFeignClient;
     private final OrderRepository orderRepository;
 
-    public ResaleCheckoutResponse checkout(String listingCode, ResaleCheckoutRequest request) {
-        ResaleCheckoutResponse response = resaleService.createResaleCheckout(listingCode, request);
+    public ResaleCheckoutResponse checkout(ResaleCheckoutRequest request) {
+        ResaleCheckoutResponse response = resaleService.createResaleCheckout(request);
 
         try {
             PaymentLinkResponse paymentLink = createPaymentLinkOrThrow(response.getOrderCode());

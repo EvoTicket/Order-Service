@@ -83,6 +83,12 @@ public class ResaleListing {
     @Column(name = "cancelled_at")
     private LocalDateTime cancelledAt;
 
+    @Column(name = "reserved_until")
+    private LocalDateTime reservedUntil;
+
+    @Column(name = "reservation_session_id")
+    private String reservationSessionId;
+
     @Builder.Default
     @Column(name = "view_count", nullable = false)
     private Long viewCount = 0L;

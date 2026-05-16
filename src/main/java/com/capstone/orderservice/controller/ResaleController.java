@@ -5,10 +5,7 @@ import com.capstone.orderservice.dto.BaseResponse;
 import com.capstone.orderservice.dto.request.CreateResaleListingRequest;
 import com.capstone.orderservice.dto.request.ResaleCheckoutRequest;
 import com.capstone.orderservice.dto.request.ResaleQuoteRequest;
-import com.capstone.orderservice.dto.response.ResaleCheckoutResponse;
-import com.capstone.orderservice.dto.response.ResaleListingResponse;
-import com.capstone.orderservice.dto.response.ResalePaymentStatusResponse;
-import com.capstone.orderservice.dto.response.ResaleQuoteResponse;
+import com.capstone.orderservice.dto.response.*;
 import com.capstone.orderservice.enums.ResaleSortOption;
 import com.capstone.orderservice.service.ResaleCheckoutFacade;
 import com.capstone.orderservice.service.ResaleService;
@@ -105,13 +102,20 @@ public class ResaleController {
                                 resaleService.cancelListing(listingCode)));
         }
 
+        @Operation(summary = "Giữ vé bán lại", description = "Khóa vé bán lại trong 5 phút để chuẩn bị thanh toán.")
+        @PostMapping("/listings/{listingCode}/reserve")
+        public ResponseEntity<BaseResponse<ResaleReserveResponse>> reserve(
+                        @PathVariable String listingCode) {
+                return ResponseEntity.ok(BaseResponse.ok("Resale ticket reserved successfully",
+                                resaleService.reserve(listingCode)));
+        }
+
         @Operation(summary = "Thanh toán mua lại vé", description = "Tạo đơn hàng mua lại vé từ thị trường chuyển nhượng.")
-        @PostMapping("/listings/{listingCode}/checkout")
+        @PostMapping("/listings/checkout")
         public ResponseEntity<BaseResponse<ResaleCheckoutResponse>> checkout(
-                        @PathVariable String listingCode,
                         @Valid @RequestBody ResaleCheckoutRequest request) {
                 return ResponseEntity.ok(BaseResponse.created("Resale checkout order created successfully",
-                                resaleCheckoutFacade.checkout(listingCode, request)));
+                                resaleCheckoutFacade.checkout(request)));
         }
 
         @Operation(summary = "Kiểm tra trạng thái thanh toán resale", description = "Kiểm tra xem đơn hàng mua lại vé đã thanh toán thành công hay chưa.")
