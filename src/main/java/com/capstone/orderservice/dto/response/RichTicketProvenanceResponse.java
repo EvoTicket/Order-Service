@@ -13,28 +13,13 @@ import java.util.Map;
 @NoArgsConstructor
 @AllArgsConstructor
 public class RichTicketProvenanceResponse {
-    private TicketInfo ticket;
+    private Object tokenId;
     private BlockchainInfo blockchain;
     private List<HistoryEntry> history;
-
-    @Data
-    @Builder
-    @NoArgsConstructor
-    @AllArgsConstructor
-    public static class TicketInfo {
-        private String eventName;
-        private String eventDate;
-        private String eventTime;
-        private String venue;
-        private String ticketType;
-        private String seat;
-        private String ticketCode;
-        private String tokenId;
-        private String status;
-        private String originalPrice;
-        private String mintStatus;
-        private String checkInStatus;
-    }
+    private List<Map<String, Object>> events;
+    private String fromBlock;
+    private String toBlock;
+    private Integer totalEvents;
 
     @Data
     @Builder
@@ -44,9 +29,6 @@ public class RichTicketProvenanceResponse {
         private String network;
         private String onChainStatus;
         private String transactionHash;
-        private String contractAddress;
-        private Long fromBlock;
-        private Long toBlock;
         private String lastUpdated;
     }
 
