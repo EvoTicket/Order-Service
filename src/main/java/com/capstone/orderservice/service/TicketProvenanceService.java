@@ -1,7 +1,6 @@
 package com.capstone.orderservice.service;
 
 import com.capstone.orderservice.dto.response.RichTicketProvenanceResponse;
-import com.capstone.orderservice.dto.response.BlockchainProvenanceDto;
 import com.capstone.orderservice.entity.Order;
 import com.capstone.orderservice.entity.ResaleListing;
 import com.capstone.orderservice.entity.TicketAsset;
@@ -213,9 +212,9 @@ public class TicketProvenanceService {
                                 ? String.format("%,.0fđ", asset.getOriginalPrice().doubleValue()).replace(',', '.')
                                 : "0đ")
                         .mintStatus(asset.getChainStatus() != null ? asset.getChainStatus().name() : "N/A")
-                        .checkInStatus(asset.getUsedAt() != null ? "used" : "unused")
+                        .checkInStatus(asset.getAccessStatus())
                         .build();
-                response.setTicket(ticketInfo);
+                response.setTicketInfo(ticketInfo);
             }
             return response;
         } catch (Exception e) {
