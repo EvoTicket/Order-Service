@@ -29,6 +29,8 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
+import java.util.List;
 
 @RestController
 @RequestMapping("/api/v1/resale")
@@ -53,11 +55,11 @@ public class ResaleController {
                         @RequestParam(required = false) BigDecimal minPrice,
                         @RequestParam(required = false) BigDecimal maxPrice,
                         @RequestParam(required = false) String listingCode,
-                        @RequestParam(required = false) String category,
+                        @RequestParam(required = false) List<String> categories,
                         @RequestParam(required = false) Integer provinceCode,
                         @RequestParam(required = false) String keyword,
-                        @RequestParam(required = false) java.time.LocalDateTime startTime,
-                        @RequestParam(required = false) java.time.LocalDateTime endTime,
+                        @RequestParam(required = false) LocalDate startTime,
+                        @RequestParam(required = false) LocalDate endTime,
                         @RequestParam(required = false) ResaleSortOption sortBy,
                         @RequestParam(defaultValue = "0") int page,
                         @RequestParam(defaultValue = "20") int size) {
@@ -68,7 +70,7 @@ public class ResaleController {
                                 minPrice,
                                 maxPrice,
                                 listingCode,
-                                category,
+                                categories,
                                 provinceCode,
                                 keyword,
                                 startTime,

@@ -9,7 +9,7 @@ import lombok.experimental.UtilityClass;
 import org.springframework.data.jpa.domain.Specification;
 
 import java.math.BigDecimal;
-import java.time.LocalDateTime;
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -23,11 +23,11 @@ public class ResaleListingSpecification {
             BigDecimal minPrice,
             BigDecimal maxPrice,
             String listingCode,
-            String category,
+            List<String> categories,
             Integer provinceCode,
             String keywordParam,
-            LocalDateTime startTime,
-            LocalDateTime endTime
+            LocalDate startTime,
+            LocalDate endTime
     ) {
         return (root, query, cb) -> {
             List<Predicate> predicates = new ArrayList<>();
@@ -56,8 +56,8 @@ public class ResaleListingSpecification {
                 predicates.add(cb.like(root.get("listingCode"), "%" + listingCode + "%"));
             }
 
-            if (category != null && !category.isBlank()) {
-                predicates.add(cb.equal(ticketAssetJoin.get("category"), category));
+            if (categories != null && !categories.isEmpty()) {
+                predicates.add(ticketAssetJoin.get("category").in(categories));
             }
 
             if (provinceCode != null) {

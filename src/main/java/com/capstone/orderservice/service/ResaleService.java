@@ -179,11 +179,11 @@ public class ResaleService {
             BigDecimal minPrice,
             BigDecimal maxPrice,
             String listingCode,
-            String category,
+            List<String> categories,
             Integer provinceCode,
             String keyword,
-            LocalDateTime startTime,
-            LocalDateTime endTime,
+            LocalDate startTime,
+            LocalDate endTime,
             ResaleSortOption sortOption,
             Pageable pageable
     ) {
@@ -196,7 +196,7 @@ public class ResaleService {
                 minPrice,
                 maxPrice,
                 listingCode,
-                category,
+                categories,
                 provinceCode,
                 keywordParam,
                 startTime,
