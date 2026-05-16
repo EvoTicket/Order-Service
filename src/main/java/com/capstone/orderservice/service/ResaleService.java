@@ -17,11 +17,7 @@ import com.capstone.orderservice.entity.Order;
 import com.capstone.orderservice.entity.OrderItem;
 import com.capstone.orderservice.entity.ResaleListing;
 import com.capstone.orderservice.entity.TicketAsset;
-import com.capstone.orderservice.enums.OrderStatus;
-import com.capstone.orderservice.enums.OrderType;
-import com.capstone.orderservice.enums.ResalePaymentResultStatus;
-import com.capstone.orderservice.enums.ResaleListingStatus;
-import com.capstone.orderservice.enums.TicketAccessStatus;
+import com.capstone.orderservice.enums.*;
 import com.capstone.orderservice.exception.AppException;
 import com.capstone.orderservice.exception.ErrorCode;
 import com.capstone.orderservice.repository.OrderRepository;
@@ -31,7 +27,9 @@ import com.capstone.orderservice.security.JwtUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -186,7 +184,7 @@ public class ResaleService {
             String keyword,
             LocalDateTime startTime,
             LocalDateTime endTime,
-            com.capstone.orderservice.enums.ResaleSortOption sortOption,
+            ResaleSortOption sortOption,
             Pageable pageable
     ) {
         String keywordParam = (keyword != null && !keyword.trim().isEmpty()) ? "%" + keyword.trim() + "%" : null;
@@ -205,8 +203,8 @@ public class ResaleService {
                 endTime
         );
 
-        org.springframework.data.domain.Sort sort = sortOption != null ? sortOption.getSort() : org.springframework.data.domain.Sort.by(org.springframework.data.domain.Sort.Direction.DESC, "createdAt");
-        org.springframework.data.domain.Pageable sortedPageable = org.springframework.data.domain.PageRequest.of(
+        Sort sort = sortOption != null ? sortOption.getSort() : Sort.by(Sort.Direction.DESC, "createdAt");
+        Pageable sortedPageable = PageRequest.of(
                 pageable.getPageNumber(),
                 pageable.getPageSize(),
                 sort.and(pageable.getSort())
@@ -235,8 +233,8 @@ public class ResaleService {
         }
 
         return listingsPage.map(listing -> {
-            ResaleListingResponse response = ResaleListingResponse.fromEntity(listing);
             TicketTypeInternalResponse details = ticketDetailsMap.get(listing.getTicketAsset().getTicketTypeId());
+            ResaleListingResponse response = ResaleListingResponse.fromEntity(listing, details);
             if (details != null) {
                 response.setEventId(details.getEventId());
                 response.setEventName(details.getEventName());
