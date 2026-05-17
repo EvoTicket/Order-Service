@@ -4,6 +4,8 @@ import com.capstone.orderservice.client.InventoryFeignClient;
 import com.capstone.orderservice.client.PaymentFeignClient;
 import com.capstone.orderservice.client.PaymentTransactionResponse;
 import com.capstone.orderservice.client.TicketTypeInternalResponse;
+import com.capstone.orderservice.client.IamFeignClient;
+import com.capstone.orderservice.client.UserBankAccountResponse;
 import com.capstone.orderservice.dto.BaseResponse;
 import com.capstone.orderservice.dto.request.CreateResaleListingRequest;
 import com.capstone.orderservice.dto.request.ResaleCheckoutRequest;
@@ -17,11 +19,13 @@ import com.capstone.orderservice.entity.Order;
 import com.capstone.orderservice.entity.OrderItem;
 import com.capstone.orderservice.entity.ResaleListing;
 import com.capstone.orderservice.entity.TicketAsset;
+import com.capstone.orderservice.entity.SellerPayout;
 import com.capstone.orderservice.enums.*;
 import com.capstone.orderservice.exception.AppException;
 import com.capstone.orderservice.exception.ErrorCode;
 import com.capstone.orderservice.repository.OrderRepository;
 import com.capstone.orderservice.repository.ResaleListingRepository;
+import com.capstone.orderservice.repository.SellerPayoutRepository;
 import com.capstone.orderservice.repository.TicketAssetRepository;
 import com.capstone.orderservice.security.JwtUtil;
 import lombok.RequiredArgsConstructor;
@@ -80,6 +84,8 @@ public class ResaleService {
     private final PaymentFeignClient paymentFeignClient;
     private final TicketAssetService ticketAssetService;
     private final InventoryFeignClient inventoryFeignClient;
+    private final SellerPayoutRepository sellerPayoutRepository;
+    private final IamFeignClient iamFeignClient;
     
 
     @Transactional(readOnly = true)
@@ -105,6 +111,22 @@ public class ResaleService {
 
         if (!currentUserId.equals(asset.getCurrentOwnerId())) {
             throw new AppException(ErrorCode.RESOURCE_NOT_FOUND, "Ticket not found");
+        }
+
+        try {
+            BaseResponse<UserBankAccountResponse> userProfileResponse = iamFeignClient.getMyBankInfo(currentUserId);
+            if (userProfileResponse != null && userProfileResponse.getData() != null) {
+                UserBankAccountResponse userProfile = userProfileResponse.getData();
+                if (userProfile.getBankAccountNumber() == null || userProfile.getBankAccountNumber().trim().isEmpty() ||
+                    userProfile.getBankCode() == null || userProfile.getBankCode().trim().isEmpty()) {
+                    throw new AppException(ErrorCode.BAD_REQUEST, "Vui lòng cập nhật thông tin tài khoản ngân hàng trước khi đăng bán vé.");
+                }
+            }
+        } catch (AppException e) {
+            throw e;
+        } catch (Exception e) {
+            log.error("Failed to check user bank info", e);
+            throw new AppException(ErrorCode.INTERNAL_SERVER_ERROR, "Không thể xác minh thông tin tài khoản ngân hàng.");
         }
 
         ResalePricingService.ResalePricing pricing = resalePricingService.calculate(
@@ -682,6 +704,15 @@ public class ResaleService {
         TicketAsset savedAsset = ticketAssetRepository.save(asset);
         resaleListingRepository.save(listing);
         orderRepository.save(order);
+
+        // Create seller payout record
+        SellerPayout payout = SellerPayout.builder()
+                .resaleListing(listing)
+                .sellerId(sellerId)
+                .amount(listing.getSellerPayoutAmount())
+                .status(PayoutStatus.PENDING)
+                .build();
+        sellerPayoutRepository.save(payout);
 
         // Cleanup reservation session upon successful payment
         cleanupResaleSession(listing);
