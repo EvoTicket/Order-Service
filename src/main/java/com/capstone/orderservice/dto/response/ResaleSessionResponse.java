@@ -21,4 +21,6 @@ public class ResaleSessionResponse {
     BigDecimal platformFeeAmount;
     BigDecimal organizerRoyaltyAmount;
     BigDecimal listingPrice;
+    private LocalDateTime expiresAt;
+    private long remainingSeconds;
 }

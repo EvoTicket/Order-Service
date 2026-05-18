@@ -382,6 +382,10 @@ public class ResaleService {
         TicketAsset asset = listing.getTicketAsset();
         Long currentUserId = jwtUtil.getDataFromAuth().userId();
 
+        LocalDateTime expiresAt = listing.getReservedUntil();
+        long remainingSeconds = expiresAt != null ? java.time.temporal.ChronoUnit.SECONDS.between(LocalDateTime.now(), expiresAt) : 0;
+        if (remainingSeconds < 0) remainingSeconds = 0;
+
         return ResaleSessionResponse.builder()
                 .userId(currentUserId)
                 .eventName(asset.getEventName())
@@ -391,6 +395,8 @@ public class ResaleService {
                 .platformFeeAmount(listing.getPlatformFeeAmount())
                 .organizerRoyaltyAmount(listing.getOrganizerRoyaltyAmount())
                 .listingPrice(listing.getListingPrice())
+                .expiresAt(expiresAt)
+                .remainingSeconds(remainingSeconds)
                 .build();
     }
 
