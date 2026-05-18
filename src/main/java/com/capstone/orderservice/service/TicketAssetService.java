@@ -26,6 +26,7 @@ import com.capstone.orderservice.entity.ResaleListing;
 import com.capstone.orderservice.security.JwtUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -40,9 +41,13 @@ import java.util.stream.Collectors;
 @Service
 @RequiredArgsConstructor
 public class TicketAssetService {
-    private static final BigDecimal PRICE_CAP_MULTIPLIER = new BigDecimal("1.10");
-    private static final BigDecimal PLATFORM_FEE_RATE = new BigDecimal("0.02");
     private static final BigDecimal ORGANIZER_ROYALTY_RATE = BigDecimal.ZERO;
+
+    @Value("${evoticket.platform-fee-rate:0.02}")
+    private BigDecimal platformFeeRate;
+
+    @Value("${evoticket.price-cap-multiplier:1.10}")
+    private BigDecimal priceCapMultiplier;
 
     private final TicketAssetRepository ticketAssetRepository;
     private final InventoryFeignClient inventoryFeignClient;
@@ -188,8 +193,8 @@ public class TicketAssetService {
                 .reasonCode(decision.reasonCode())
                 .reasonMessage(decision.reasonMessage())
                 .originalPrice(asset.getOriginalPrice())
-                .priceCap(originalPrice.multiply(PRICE_CAP_MULTIPLIER))
-                .platformFeeRate(PLATFORM_FEE_RATE)
+                .priceCap(originalPrice.multiply(priceCapMultiplier))
+                .platformFeeRate(platformFeeRate)
                 .organizerRoyaltyRate(ORGANIZER_ROYALTY_RATE)
                 .accessStatus(asset.getAccessStatus())
                 .chainStatus(asset.getChainStatus())
@@ -294,6 +299,7 @@ public class TicketAssetService {
                 .qrAvailable(isQrAvailable(asset, currentUserId))
                 .canResell(eligibility.canResell())
                 .resaleBlockedReason(eligibility.canResell() ? null : eligibility.reasonMessage())
+                .platformFeeRate(platformFeeRate)
                 .build();
     }
 

@@ -52,6 +52,10 @@ spring:
 swagger:
   host-url: http://localhost:${server.port}
 
+evoticket:
+  platform-fee-rate: 0.02
+  price-cap-multiplier: 1.10
+
 eureka:
   client:
     service-url:

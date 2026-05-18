@@ -28,7 +28,7 @@ public class ResaleCheckoutFacade {
         ResaleCheckoutResponse response = resaleService.createResaleCheckout(request);
 
         try {
-            PaymentLinkResponse paymentLink = createPaymentLinkOrThrow(response.getOrderCode());
+            PaymentLinkResponse paymentLink = createPaymentLinkOrThrow(response.getOrderCode(), request.getLocale());
             response.setRedirectUrl(paymentLink.getRedirectUrl());
             return response;
         } catch (Exception e) {
@@ -46,7 +46,7 @@ public class ResaleCheckoutFacade {
         ResalePaymentStatusResponse response = resaleService.validateContinuePayment(orderCode);
 
         try {
-            PaymentLinkResponse paymentLink = createPaymentLinkOrThrow(orderCode);
+            PaymentLinkResponse paymentLink = createPaymentLinkOrThrow(orderCode, "vi");
             response.setRedirectUrl(paymentLink.getRedirectUrl());
             return response;
         } catch (Exception e) {
@@ -54,10 +54,10 @@ public class ResaleCheckoutFacade {
         }
     }
 
-    private PaymentLinkResponse createPaymentLinkOrThrow(String orderCode) {
+    private PaymentLinkResponse createPaymentLinkOrThrow(String orderCode, String locale) {
         Order order = orderRepository.findByOrderCode(orderCode)
                 .orElseThrow(() -> new AppException(ErrorCode.RESOURCE_NOT_FOUND, "Order not found"));
-        OrderInternalResponse request = OrderInternalResponse.fromEntity(order);
+        OrderInternalResponse request = OrderInternalResponse.fromEntity(order, locale);
         BaseResponse<PaymentLinkResponse> response = paymentFeignClient.createPaymentLink(request);
         PaymentLinkResponse paymentLink = response != null ? response.getData() : null;
         if (paymentLink == null

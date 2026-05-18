@@ -21,5 +21,7 @@ public class ResaleCheckoutRequest {
 
     private String phoneNumber;
 
+    private String locale;
+
     private String resaleSessionId;
 }

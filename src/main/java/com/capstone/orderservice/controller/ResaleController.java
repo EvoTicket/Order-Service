@@ -137,7 +137,8 @@ public class ResaleController {
         @Operation(summary = "Tiếp tục thanh toán resale", description = "Tạo lại link thanh toán cho một đơn hàng mua lại vé đang chờ.")
         @PostMapping("/orders/{orderCode}/continue-payment")
         public ResponseEntity<BaseResponse<ResalePaymentStatusResponse>> continuePayment(
-                        @PathVariable String orderCode) {
+                        @PathVariable String orderCode
+        ) {
                 return ResponseEntity.ok(BaseResponse.ok("Resale payment link created successfully",
                                 resaleCheckoutFacade.continuePayment(orderCode)));
         }

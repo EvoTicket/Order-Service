@@ -33,7 +33,22 @@ public class OrderInternalResponse {
                 .buyerEmail(order.getEmail())
                 .buyerName(order.getFullName())
                 .buyerPhone(order.getPhoneNumber())
+                .finalAmount(order.getFinalAmount())
+                .items(order.getOrderItems().stream()
+                        .map(OrderItemInternalResponse::fromEntity)
+                        .toList())
+                .build();
+    }
+
+    public static OrderInternalResponse fromEntity(Order order, String locale) {
+        return OrderInternalResponse.builder()
+                .orderCode(order.getOrderCode())
+                .paymentMethod(order.getPaymentMethod())
+                .buyerEmail(order.getEmail())
+                .buyerName(order.getFullName())
+                .buyerPhone(order.getPhoneNumber())
                 .eventId(order.getEventId())
+                .locale(locale)
                 .finalAmount(order.getFinalAmount())
                 .items(order.getOrderItems().stream()
                         .map(OrderItemInternalResponse::fromEntity)

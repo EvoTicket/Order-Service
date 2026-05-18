@@ -44,4 +44,5 @@ public class TicketAssetResponse {
     private Boolean qrAvailable;
     private Boolean canResell;
     private String resaleBlockedReason;
+    private BigDecimal platformFeeRate;
 }
