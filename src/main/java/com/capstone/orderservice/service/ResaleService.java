@@ -87,7 +87,6 @@ public class ResaleService {
     private final InventoryFeignClient inventoryFeignClient;
     private final SellerPayoutRepository sellerPayoutRepository;
     private final IamFeignClient iamFeignClient;
-    
 
     @Transactional(readOnly = true)
     public ResaleQuoteResponse quote(ResaleQuoteRequest request) {
@@ -388,7 +387,10 @@ public class ResaleService {
                 .eventName(asset.getEventName())
                 .time(asset.getEventStartTime())
                 .venue(asset.getVenueName())
-                .amount(listing.getListingPrice())
+                .originalPrice(listing.getOriginalPrice())
+                .platformFeeAmount(listing.getPlatformFeeAmount())
+                .organizerRoyaltyAmount(listing.getOrganizerRoyaltyAmount())
+                .listingPrice(listing.getListingPrice())
                 .build();
     }
 

@@ -17,5 +17,8 @@ public class ResaleSessionResponse {
     private String eventName;
     private LocalDateTime time;
     private String venue;
-    private BigDecimal amount;
+    BigDecimal originalPrice;
+    BigDecimal platformFeeAmount;
+    BigDecimal organizerRoyaltyAmount;
+    BigDecimal listingPrice;
 }
