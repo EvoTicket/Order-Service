@@ -110,6 +110,14 @@ public class ResaleController {
                                 resaleService.reserve(listingCode)));
         }
 
+        @Operation(summary = "Lấy thông tin phiên giữ vé chuyển nhượng", description = "Lấy thông tin chi tiết về phiên giữ vé chuyển nhượng qua ID phiên.")
+        @GetMapping("/session/{sessionId}")
+        public ResponseEntity<BaseResponse<ResaleSessionResponse>> getResaleSession(
+                        @PathVariable String sessionId) {
+                return ResponseEntity.ok(BaseResponse.ok("Fetched resale session successfully",
+                                resaleService.getResaleSession(sessionId)));
+        }
+
         @Operation(summary = "Thanh toán mua lại vé", description = "Tạo đơn hàng mua lại vé từ thị trường chuyển nhượng.")
         @PostMapping("/listings/checkout")
         public ResponseEntity<BaseResponse<ResaleCheckoutResponse>> checkout(

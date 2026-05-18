@@ -40,6 +40,7 @@ import org.springframework.transaction.annotation.Transactional;
 import com.capstone.orderservice.repository.ResaleListingSpecification;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import com.capstone.orderservice.dto.response.ResaleReserveResponse;
+import com.capstone.orderservice.dto.response.ResaleSessionResponse;
 import java.util.concurrent.TimeUnit;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.transaction.support.TransactionSynchronization;
@@ -364,6 +365,30 @@ public class ResaleService {
                 .resaleSessionId(sessionId)
                 .listingCode(listingCode)
                 .reservedUntil(reservedUntil)
+                .build();
+    }
+
+    @Transactional(readOnly = true)
+    public ResaleSessionResponse getResaleSession(String sessionId) {
+        String redisKey = RESALE_RESERVATION_KEY_PREFIX + sessionId;
+        String listingCode = redisTemplate.opsForValue().get(redisKey);
+
+        if (listingCode == null) {
+            throw new AppException(ErrorCode.BAD_REQUEST, "Reservation has expired or is invalid");
+        }
+
+        ResaleListing listing = resaleListingRepository.findByReservationSessionId(sessionId)
+                .orElseThrow(() -> new AppException(ErrorCode.RESOURCE_NOT_FOUND, "Resale listing session not found"));
+
+        TicketAsset asset = listing.getTicketAsset();
+        Long currentUserId = jwtUtil.getDataFromAuth().userId();
+
+        return ResaleSessionResponse.builder()
+                .userId(currentUserId)
+                .eventName(asset.getEventName())
+                .time(asset.getEventStartTime())
+                .venue(asset.getVenueName())
+                .amount(listing.getListingPrice())
                 .build();
     }
 
