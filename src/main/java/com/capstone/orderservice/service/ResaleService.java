@@ -67,7 +67,7 @@ import java.util.concurrent.ThreadLocalRandom;
 public class ResaleService {
     private final StringRedisTemplate redisTemplate;
     private static final String RESALE_RESERVATION_KEY_PREFIX = "resale:reservation:";
-    private static final long RESALE_RESERVATION_TTL_MINUTES = 5;
+    private static final long RESALE_RESERVATION_TTL_MINUTES = 15;
 
     private static final List<ResaleListingStatus> ACTIVE_LISTING_STATUSES = List.of(
             ResaleListingStatus.ACTIVE,
