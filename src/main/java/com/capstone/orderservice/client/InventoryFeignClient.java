@@ -4,6 +4,7 @@ import com.capstone.orderservice.config.FeignClientConfig;
 import com.capstone.orderservice.dto.BaseResponse;
 import com.capstone.orderservice.dto.request.OrderItemRequest;
 import org.springframework.cloud.openfeign.FeignClient;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -28,4 +29,7 @@ public interface InventoryFeignClient {
 
     @PostMapping("/ticket-types/details")
     BaseResponse<List<TicketTypeInternalResponse>> getTicketDetails(@RequestBody List<Long> ticketTypeIds);
+
+    @GetMapping("/event/{eventId}/allow-resale")
+    boolean getAllowResale(@PathVariable Long eventId);
 }

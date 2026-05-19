@@ -109,6 +109,10 @@ public class OrderService {
         if (listTicketTypesInternalResponse == null) {
             throw new AppException(ErrorCode.INTERNAL_SERVER_ERROR, "Lấy ticket lỗi");
         }
+        if(!listTicketTypesInternalResponse.isAllowDiscountCode() &&  request.getVoucherCode() != null){
+            throw new AppException(ErrorCode.BAD_REQUEST, "Mã giảm giá không được áp dụng cho đơn hàng này");
+        }
+
         order.setEventId(listTicketTypesInternalResponse.getEventId());
 
         for (ListTicketTypesInternalResponse.TicketDetailResponse ticket : listTicketTypesInternalResponse

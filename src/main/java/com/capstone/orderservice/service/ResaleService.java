@@ -109,6 +109,10 @@ public class ResaleService {
         TicketAsset asset = ticketAssetRepository.findByIdForUpdate(request.getTicketAssetId())
                 .orElseThrow(() -> new AppException(ErrorCode.RESOURCE_NOT_FOUND, "Ticket not found"));
 
+        if (!inventoryFeignClient.getAllowResale(asset.getEventId())) {
+            throw new AppException(ErrorCode.BAD_REQUEST, "Resale is not allowed for this event");
+        }
+
         if (!currentUserId.equals(asset.getCurrentOwnerId())) {
             throw new AppException(ErrorCode.RESOURCE_NOT_FOUND, "Ticket not found");
         }
