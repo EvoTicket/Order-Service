@@ -68,7 +68,7 @@ import java.util.concurrent.ThreadLocalRandom;
 public class ResaleService {
     private final StringRedisTemplate redisTemplate;
     private static final String RESALE_RESERVATION_KEY_PREFIX = "resale:reservation:";
-    private static final long RESALE_RESERVATION_TTL_MINUTES = 5;
+    private static final long RESALE_RESERVATION_TTL_MINUTES = 15;
 
     private static final List<ResaleListingStatus> ACTIVE_LISTING_STATUSES = List.of(
             ResaleListingStatus.ACTIVE,
@@ -127,6 +127,10 @@ public class ResaleService {
         Long currentUserId = jwtUtil.getDataFromAuth().userId();
         TicketAsset asset = ticketAssetRepository.findByIdForUpdate(request.getTicketAssetId())
                 .orElseThrow(() -> new AppException(ErrorCode.RESOURCE_NOT_FOUND, "Ticket not found"));
+
+        if (!inventoryFeignClient.getAllowResale(asset.getEventId())) {
+            throw new AppException(ErrorCode.BAD_REQUEST, "Resale is not allowed for this event");
+        }
 
         if (!currentUserId.equals(asset.getCurrentOwnerId())) {
             throw new AppException(ErrorCode.RESOURCE_NOT_FOUND, "Ticket not found");

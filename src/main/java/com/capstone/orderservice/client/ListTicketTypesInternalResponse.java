@@ -14,6 +14,7 @@ public class ListTicketTypesInternalResponse {
     Long eventId;
     String eventName;
     Long showtimeId;
+    boolean allowDiscountCode;
     List<TicketDetailResponse> ticketDetails;
 
     @Getter
