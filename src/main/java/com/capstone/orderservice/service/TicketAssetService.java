@@ -187,15 +187,31 @@ public class TicketAssetService {
         EligibilityDecision decision = evaluateResaleEligibility(asset, currentUserId, LocalDateTime.now());
         BigDecimal originalPrice = asset.getOriginalPrice() != null ? asset.getOriginalPrice() : BigDecimal.ZERO;
 
+        BigDecimal actualPriceCapMultiplier = priceCapMultiplier;
+        BigDecimal actualRoyaltyRate = ORGANIZER_ROYALTY_RATE;
+
+        Optional<EventDetailInternalResponse> eventMetadata = fetchEventMetadata(asset.getTicketTypeId());
+        if (eventMetadata.isPresent()) {
+            EventDetailInternalResponse metadata = eventMetadata.get();
+            if (metadata.getMaxResalePricePercentage() != null) {
+                actualPriceCapMultiplier = metadata.getMaxResalePricePercentage();
+            }
+            if (metadata.getOrganizerRoyaltyFeePercentage() != null) {
+                actualRoyaltyRate = metadata.getOrganizerRoyaltyFeePercentage();
+            }
+        }
+
+        BigDecimal priceCap = originalPrice.multiply(actualPriceCapMultiplier).setScale(2, java.math.RoundingMode.HALF_UP);
+
         return ResaleEligibilityResponse.builder()
                 .ticketAssetId(asset.getId())
                 .canResell(decision.canResell())
                 .reasonCode(decision.reasonCode())
                 .reasonMessage(decision.reasonMessage())
                 .originalPrice(asset.getOriginalPrice())
-                .priceCap(originalPrice.multiply(priceCapMultiplier))
+                .priceCap(priceCap)
                 .platformFeeRate(platformFeeRate)
-                .organizerRoyaltyRate(ORGANIZER_ROYALTY_RATE)
+                .organizerRoyaltyRate(actualRoyaltyRate)
                 .accessStatus(asset.getAccessStatus())
                 .chainStatus(asset.getChainStatus())
                 .currentResaleListingId(asset.getCurrentResaleListingId())

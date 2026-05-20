@@ -20,11 +20,19 @@ public class ResalePricingService {
     private BigDecimal platformFeeRate;
 
     public ResalePricing calculate(BigDecimal originalPrice, BigDecimal listingPrice) {
+        return calculate(originalPrice, listingPrice, null, null);
+    }
+
+    public ResalePricing calculate(BigDecimal originalPrice, BigDecimal listingPrice, BigDecimal customPriceCapMultiplier, BigDecimal customRoyaltyRate) {
         BigDecimal safeOriginalPrice = money(originalPrice);
         BigDecimal safeListingPrice = money(listingPrice);
-        BigDecimal priceCap = money(safeOriginalPrice.multiply(priceCapMultiplier));
+
+        BigDecimal actualPriceCapMultiplier = customPriceCapMultiplier != null ? customPriceCapMultiplier : priceCapMultiplier;
+        BigDecimal actualRoyaltyRate = customRoyaltyRate != null ? customRoyaltyRate : ORGANIZER_ROYALTY_RATE;
+
+        BigDecimal priceCap = money(safeOriginalPrice.multiply(actualPriceCapMultiplier));
         BigDecimal platformFeeAmount = money(safeListingPrice.multiply(platformFeeRate));
-        BigDecimal organizerRoyaltyAmount = money(safeListingPrice.multiply(ORGANIZER_ROYALTY_RATE));
+        BigDecimal organizerRoyaltyAmount = money(safeListingPrice.multiply(actualRoyaltyRate));
         BigDecimal sellerPayoutAmount = money(safeListingPrice.subtract(platformFeeAmount).subtract(organizerRoyaltyAmount));
 
         return ResalePricing.builder()
@@ -32,7 +40,7 @@ public class ResalePricingService {
                 .listingPrice(safeListingPrice)
                 .priceCap(priceCap)
                 .platformFeeRate(platformFeeRate)
-                .organizerRoyaltyRate(ORGANIZER_ROYALTY_RATE)
+                .organizerRoyaltyRate(actualRoyaltyRate)
                 .platformFeeAmount(platformFeeAmount)
                 .organizerRoyaltyAmount(organizerRoyaltyAmount)
                 .sellerPayoutAmount(sellerPayoutAmount)

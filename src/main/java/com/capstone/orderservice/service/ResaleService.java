@@ -4,6 +4,7 @@ import com.capstone.orderservice.client.InventoryFeignClient;
 import com.capstone.orderservice.client.PaymentFeignClient;
 import com.capstone.orderservice.client.PaymentTransactionResponse;
 import com.capstone.orderservice.client.TicketTypeInternalResponse;
+import com.capstone.orderservice.client.EventDetailInternalResponse;
 import com.capstone.orderservice.client.IamFeignClient;
 import com.capstone.orderservice.client.UserBankAccountResponse;
 import com.capstone.orderservice.dto.BaseResponse;
@@ -88,15 +89,33 @@ public class ResaleService {
     private final SellerPayoutRepository sellerPayoutRepository;
     private final IamFeignClient iamFeignClient;
 
+    private EventDetailInternalResponse fetchEventMetadata(Long ticketTypeId) {
+        try {
+            BaseResponse<EventDetailInternalResponse> response = inventoryFeignClient.getEventDetailsByTicketTypeId(ticketTypeId);
+            if (response != null && response.getData() != null) {
+                return response.getData();
+            }
+        } catch (Exception e) {
+            log.warn("Failed to fetch event metadata for ticketTypeId={}", ticketTypeId, e);
+        }
+        return null;
+    }
+
     @Transactional(readOnly = true)
     public ResaleQuoteResponse quote(ResaleQuoteRequest request) {
         Long currentUserId = jwtUtil.getDataFromAuth().userId();
         TicketAsset asset = ticketAssetRepository.findByIdAndCurrentOwnerId(request.getTicketAssetId(), currentUserId)
                 .orElseThrow(() -> new AppException(ErrorCode.RESOURCE_NOT_FOUND, "Ticket not found"));
 
+        EventDetailInternalResponse metadata = fetchEventMetadata(asset.getTicketTypeId());
+        BigDecimal maxResalePricePercentage = metadata != null ? metadata.getMaxResalePricePercentage() : null;
+        BigDecimal organizerRoyaltyFeePercentage = metadata != null ? metadata.getOrganizerRoyaltyFeePercentage() : null;
+
         ResalePricingService.ResalePricing pricing = resalePricingService.calculate(
                 asset.getOriginalPrice(),
-                request.getListingPrice()
+                request.getListingPrice(),
+                maxResalePricePercentage,
+                organizerRoyaltyFeePercentage
         );
         ResaleDecision decision = evaluateListingRequest(asset, request.getListingPrice(), pricing, LocalDateTime.now());
 
@@ -129,9 +148,15 @@ public class ResaleService {
             throw new AppException(ErrorCode.INTERNAL_SERVER_ERROR, "Không thể xác minh thông tin tài khoản ngân hàng.");
         }
 
+        EventDetailInternalResponse metadata = fetchEventMetadata(asset.getTicketTypeId());
+        BigDecimal maxResalePricePercentage = metadata != null ? metadata.getMaxResalePricePercentage() : null;
+        BigDecimal organizerRoyaltyFeePercentage = metadata != null ? metadata.getOrganizerRoyaltyFeePercentage() : null;
+
         ResalePricingService.ResalePricing pricing = resalePricingService.calculate(
                 asset.getOriginalPrice(),
-                request.getListingPrice()
+                request.getListingPrice(),
+                maxResalePricePercentage,
+                organizerRoyaltyFeePercentage
         );
         ResaleDecision decision = evaluateListingRequest(asset, request.getListingPrice(), pricing, LocalDateTime.now());
         if (!decision.valid()) {

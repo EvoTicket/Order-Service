@@ -19,6 +19,8 @@ public class EventDetailInternalResponse {
     String category;
     Integer provinceCode;
     ShowtimeDetail showtime;
+    java.math.BigDecimal maxResalePricePercentage;
+    java.math.BigDecimal organizerRoyaltyFeePercentage;
 
     @Getter
     @Setter
