@@ -16,6 +16,7 @@ import com.capstone.orderservice.exception.AppException;
 import com.capstone.orderservice.exception.ErrorCode;
 import com.capstone.orderservice.producer.RedisStreamProducer;
 import com.capstone.orderservice.repository.OrderRepository;
+import com.capstone.orderservice.repository.ResaleListingRepository;
 import com.capstone.orderservice.security.JwtUtil;
 import com.capstone.orderservice.util.OrderUtil;
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -55,6 +56,7 @@ public class OrderService {
     private final PaymentFeignClient paymentFeignClient;
     private final TicketAssetService ticketAssetService;
     private final ResaleService resaleService;
+    private final ResaleListingRepository resaleListingRepository;
 
     @Transactional
     public PaymentLinkResponse createOrder(CreateOrderRequest request) {
@@ -528,6 +530,44 @@ public class OrderService {
                 .totalRevenue(totalRevenue)
                 .totalTicketsSold(totalTicketsSold)
                 .trend(trend)
+                .build();
+    }
+
+    @Transactional(readOnly = true)
+    public OrganizerOrdersStatsResponse getOrganizerStats(List<Long> eventIds, int days) {
+        LocalDateTime since = LocalDateTime.now().minusDays(days).withHour(0).withMinute(0).withSecond(0);
+
+        List<Object[]> resaleResults = resaleListingRepository.getResaleStatsForEvents(eventIds, since);
+        Map<Long, Long> resaleVolumeMap = new HashMap<>();
+        Map<Long, BigDecimal> royaltyFeeMap = new HashMap<>();
+        for (Object[] row : resaleResults) {
+            Long eventId = (Long) row[0];
+            Long count = (Long) row[1];
+            BigDecimal royaltySum = (BigDecimal) row[2];
+            resaleVolumeMap.put(eventId, count != null ? count : 0L);
+            royaltyFeeMap.put(eventId, royaltySum != null ? royaltySum : BigDecimal.ZERO);
+        }
+
+        List<Object[]> dailyResults = orderRepository.getDailyRevenueTrendForEvents(eventIds, since);
+        Map<String, BigDecimal> dailyRevenueMap = new HashMap<>();
+        DateTimeFormatter df = DateTimeFormatter.ofPattern("yyyy-MM-dd");
+        for (Object[] row : dailyResults) {
+            java.sql.Date sqlDate = (java.sql.Date) row[0];
+            BigDecimal amount = (BigDecimal) row[1];
+            if (sqlDate != null) {
+                dailyRevenueMap.put(sqlDate.toLocalDate().format(df), amount != null ? amount : BigDecimal.ZERO);
+            }
+        }
+
+        for (Long id : eventIds) {
+            resaleVolumeMap.putIfAbsent(id, 0L);
+            royaltyFeeMap.putIfAbsent(id, BigDecimal.ZERO);
+        }
+
+        return OrganizerOrdersStatsResponse.builder()
+                .resaleVolumeMap(resaleVolumeMap)
+                .royaltyFeeMap(royaltyFeeMap)
+                .dailyRevenueMap(dailyRevenueMap)
                 .build();
     }
 }

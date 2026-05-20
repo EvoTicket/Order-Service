@@ -41,4 +41,12 @@ public interface ResaleListingRepository extends JpaRepository<ResaleListing, Lo
     List<ResaleListing> findAllByStatusAndReservedUntilBefore(ResaleListingStatus status, LocalDateTime now);
 
     Optional<ResaleListing> findByReservationSessionId(String sessionId);
+
+    @Query("""
+        SELECT r.ticketAsset.eventId, COUNT(r.id), SUM(r.organizerRoyaltyAmount)
+        FROM ResaleListing r
+        WHERE r.ticketAsset.eventId IN :eventIds AND r.status = 'SOLD' AND r.soldAt >= :since
+        GROUP BY r.ticketAsset.eventId
+    """)
+    List<Object[]> getResaleStatsForEvents(@Param("eventIds") List<Long> eventIds, @Param("since") LocalDateTime since);
 }

@@ -73,4 +73,13 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
             "FROM Order o JOIN o.orderItems oi " +
             "WHERE o.orderStatus = 'CONFIRMED' AND o.createdAt >= :startDate")
     List<Object[]> getPlatformStats(@Param("startDate") LocalDateTime startDate);
+
+    @Query("""
+        SELECT CAST(o.createdAt AS date) as d, SUM(o.finalAmount)
+        FROM Order o
+        WHERE o.eventId IN :eventIds AND o.orderStatus = 'CONFIRMED' AND o.createdAt >= :since
+        GROUP BY CAST(o.createdAt AS date)
+        ORDER BY CAST(o.createdAt AS date) ASC
+    """)
+    List<Object[]> getDailyRevenueTrendForEvents(@Param("eventIds") List<Long> eventIds, @Param("since") LocalDateTime since);
 }

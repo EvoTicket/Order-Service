@@ -2,6 +2,7 @@ package com.capstone.orderservice.client;
 
 import com.capstone.orderservice.dto.BaseResponse;
 import com.capstone.orderservice.dto.response.EventVolumeDto;
+import com.capstone.orderservice.dto.response.OrganizerOrdersStatsResponse;
 import com.capstone.orderservice.service.OrderService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -48,5 +49,12 @@ public class InternalController {
     public ResponseEntity<com.capstone.orderservice.dto.response.PlatformStatsResponse> getPlatformStats(
             @RequestParam(defaultValue = "30") int days) {
         return ResponseEntity.ok(orderService.getPlatformStats(days));
+    }
+
+    @GetMapping("/orders/organizer-stats")
+    public ResponseEntity<OrganizerOrdersStatsResponse> getOrganizerStats(
+            @RequestParam List<Long> eventIds,
+            @RequestParam int days) {
+        return ResponseEntity.ok(orderService.getOrganizerStats(eventIds, days));
     }
 }
