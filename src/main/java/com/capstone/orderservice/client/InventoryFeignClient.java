@@ -31,5 +31,5 @@ public interface InventoryFeignClient {
     boolean getAllowResale(@PathVariable Long eventId);
 
     @GetMapping("/bank/bin-code")
-    BaseResponse<String> getBinCodeFromBankCode(@RequestParam String bankCode);
+    BaseResponse<BinCodeDto> getBinCodeFromBankCode(@RequestParam String bankCode);
 }
