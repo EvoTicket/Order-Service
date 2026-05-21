@@ -26,7 +26,7 @@ public class ResalePayoutService {
 
         ResalePayoutRequest request = ResalePayoutRequest.builder()
                 .amount(amount)
-                .binCode(inventoryFeignClient.getBinCodeFromBankCode(bankInfo.getBankCode()).getData())
+                .binCode(inventoryFeignClient.getBinCodeFromBankCode(bankInfo.getBankCode()).getData().getBinCode())
                 .bankAccountNumber(bankInfo.getBankAccountNumber())
                 .build();
         log.info("Processing resale payout request in order-service {}", request);
