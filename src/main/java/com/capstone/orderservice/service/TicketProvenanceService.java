@@ -15,7 +15,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.web.client.RestClient;
+import com.capstone.orderservice.client.WorkerClient;
 
 import java.util.*;
 import java.util.stream.Collectors;
@@ -27,7 +27,6 @@ import java.util.List;
 @Service
 @RequiredArgsConstructor
 public class TicketProvenanceService {
-    private static final String BLOCKCHAIN_API_BASE = "http://web3-worker-service:4500";
     private static final DateTimeFormatter DATE_TIME_FORMATTER = DateTimeFormatter.ofPattern("dd/MM/yyyy, HH:mm");
     private static final String PRIMARY_ISSUED_DESCRIPTION = "Ticket issued after primary order confirmation";
     private static final String RESALE_LISTED_DESCRIPTION = "Ticket listed for resale";
@@ -38,6 +37,7 @@ public class TicketProvenanceService {
     private final TicketProvenanceRepository ticketProvenanceRepository;
     private final TicketAssetRepository ticketAssetRepository;
     private final JwtUtil jwtUtil;
+    private final WorkerClient workerClient;
 
     @Transactional
     public void recordPrimaryIssued(TicketAsset asset) {
@@ -183,15 +183,11 @@ public class TicketProvenanceService {
         }
 
         try {
-            RestClient restClient = RestClient.create(BLOCKCHAIN_API_BASE);
-            RichTicketProvenanceResponse response = restClient.get()
-                    .uri(uriBuilder -> uriBuilder
-                            .path("/api/blockchain/tickets/{tokenId}/history")
-                            .queryParam("fromBlock", asset.getFromBlock())
-                            .queryParam("toBlock", asset.getToBlock())
-                            .build(asset.getTokenId()))
-                    .retrieve()
-                    .body(RichTicketProvenanceResponse.class);
+            RichTicketProvenanceResponse response = workerClient.getTicketHistory(
+                    asset.getTokenId(), 
+                    asset.getFromBlock(), 
+                    asset.getToBlock()
+            );
 
             if (response != null) {
                 RichTicketProvenanceResponse.TicketInfo ticketInfo = RichTicketProvenanceResponse.TicketInfo.builder()

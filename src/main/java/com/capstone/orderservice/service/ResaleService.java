@@ -46,7 +46,7 @@ import java.util.concurrent.TimeUnit;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
-import org.springframework.web.client.RestClient;
+import com.capstone.orderservice.client.WorkerClient;
 
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
@@ -88,6 +88,7 @@ public class ResaleService {
     private final InventoryFeignClient inventoryFeignClient;
     private final SellerPayoutRepository sellerPayoutRepository;
     private final IamFeignClient iamFeignClient;
+    private final WorkerClient workerClient;
 
     private EventDetailInternalResponse fetchEventMetadata(Long ticketTypeId) {
         try {
@@ -800,12 +801,7 @@ public class ResaleService {
                 @Override
                 public void afterCommit() {
                     try {
-                        RestClient restClient = RestClient.create("http://web3-worker-service:4500");
-                        restClient.post()
-                                .uri("/api/blockchain/transfer")
-                                .body(transferPayload)
-                                .retrieve()
-                                .toBodilessEntity();
+                        workerClient.transferTicket(transferPayload);
                         log.info("Successfully sent transfer request to web3-worker-service for ticket tokenId {} from user {} to {}",
                                 asset.getTokenId(), sellerId, buyerId);
                     } catch (Exception e) {

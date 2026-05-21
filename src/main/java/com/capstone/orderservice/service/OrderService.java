@@ -30,7 +30,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
-import org.springframework.web.client.RestClient;
+import com.capstone.orderservice.client.WorkerClient;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
@@ -57,6 +57,7 @@ public class OrderService {
     private final TicketAssetService ticketAssetService;
     private final ResaleService resaleService;
     private final ResaleListingRepository resaleListingRepository;
+    private final WorkerClient workerClient;
 
     @Transactional
     public PaymentLinkResponse createOrder(CreateOrderRequest request) {
@@ -207,12 +208,7 @@ public class OrderService {
                 @Override
                 public void afterCommit() {
                     try {
-                        RestClient restClient = RestClient.create("http://web3-worker-service:4500");
-                        restClient.post()
-                                .uri("/api/blockchain/mint-order")
-                                .body(payload)
-                                .retrieve()
-                                .toBodilessEntity();
+                        workerClient.mintOrder(payload);
                         log.info("Successfully sent mint-order request to web3-worker-service for order {}", order.getOrderCode());
                     } catch (Exception e) {
                         log.error("Failed to call web3-worker-service for minting order {}", order.getOrderCode(), e);
