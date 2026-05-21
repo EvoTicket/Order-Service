@@ -2,6 +2,7 @@ package com.capstone.orderservice.service;
 
 import com.capstone.orderservice.client.EventDetailInternalResponse;
 import com.capstone.orderservice.client.InventoryFeignClient;
+import com.capstone.orderservice.dto.BaseResponse;
 import com.capstone.orderservice.dto.response.MyTicketGroupResponse;
 import com.capstone.orderservice.dto.response.MyTicketItemResponse;
 import com.capstone.orderservice.dto.response.ResaleEligibilityResponse;
@@ -285,6 +286,18 @@ public class TicketAssetService {
     private TicketAssetResponse toTicketAssetResponse(TicketAsset asset, Long currentUserId, LocalDateTime now) {
         EligibilityDecision eligibility = evaluateResaleEligibility(asset, currentUserId, now);
 
+        BigDecimal actualPriceCapMultiplier = priceCapMultiplier;
+        BigDecimal actualRoyaltyRate = ORGANIZER_ROYALTY_RATE;
+        Optional<EventDetailInternalResponse> eventMetadata = fetchEventMetadata(asset.getTicketTypeId());
+        if (eventMetadata.isPresent()) {
+            EventDetailInternalResponse metadata = eventMetadata.get();
+            if (metadata.getMaxResalePricePercentage() != null) {
+                actualPriceCapMultiplier = metadata.getMaxResalePricePercentage();
+            }
+            if (metadata.getOrganizerRoyaltyFeePercentage() != null) {
+                actualRoyaltyRate = metadata.getOrganizerRoyaltyFeePercentage();
+            }
+        }
         return TicketAssetResponse.builder()
                 .ticketAssetId(asset.getId())
                 .assetCode(asset.getAssetCode())
@@ -316,6 +329,8 @@ public class TicketAssetService {
                 .canResell(eligibility.canResell())
                 .resaleBlockedReason(eligibility.canResell() ? null : eligibility.reasonMessage())
                 .platformFeeRate(platformFeeRate)
+                .maxResalePricePercentage(actualPriceCapMultiplier)
+                .organizerRoyaltyFeePercentage(actualRoyaltyRate)
                 .build();
     }
 

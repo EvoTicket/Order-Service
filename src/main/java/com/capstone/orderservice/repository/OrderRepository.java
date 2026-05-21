@@ -39,8 +39,8 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
     List<Object[]> countPurchasesByEventForUser(@Param("userId") Long userId);
 
     @Query("SELECT o.eventId, " +
-            "SUM(CASE WHEN o.createdAt >= :oneDayAgo THEN o.finalAmount ELSE 0 END), " +
-            "SUM(CASE WHEN o.createdAt >= :twoDaysAgo AND o.createdAt < :oneDayAgo THEN o.finalAmount ELSE 0 END) " +
+            "SUM(CASE WHEN o.createdAt >= :oneDayAgo THEN o.totalAmount ELSE 0 END), " +
+            "SUM(CASE WHEN o.createdAt >= :twoDaysAgo AND o.createdAt < :oneDayAgo THEN o.totalAmount ELSE 0 END) " +
             "FROM Order o " +
             "WHERE o.eventId IN :eventIds AND o.orderStatus = 'CONFIRMED' AND o.createdAt >= :twoDaysAgo " +
             "GROUP BY o.eventId")

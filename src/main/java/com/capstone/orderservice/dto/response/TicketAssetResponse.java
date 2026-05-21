@@ -45,4 +45,6 @@ public class TicketAssetResponse {
     private Boolean canResell;
     private String resaleBlockedReason;
     private BigDecimal platformFeeRate;
+    BigDecimal maxResalePricePercentage;
+    BigDecimal organizerRoyaltyFeePercentage;
 }

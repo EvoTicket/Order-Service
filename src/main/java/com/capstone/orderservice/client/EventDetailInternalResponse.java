@@ -2,6 +2,7 @@ package com.capstone.orderservice.client;
 
 import lombok.*;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 @Getter
@@ -19,8 +20,8 @@ public class EventDetailInternalResponse {
     String category;
     Integer provinceCode;
     ShowtimeDetail showtime;
-    java.math.BigDecimal maxResalePricePercentage;
-    java.math.BigDecimal organizerRoyaltyFeePercentage;
+    BigDecimal maxResalePricePercentage;
+    BigDecimal organizerRoyaltyFeePercentage;
 
     @Getter
     @Setter
