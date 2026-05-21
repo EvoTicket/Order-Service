@@ -89,6 +89,7 @@ public class ResaleService {
     private final SellerPayoutRepository sellerPayoutRepository;
     private final IamFeignClient iamFeignClient;
     private final WorkerClient workerClient;
+    private final ResalePayoutService resalePayoutService;
 
     private EventDetailInternalResponse fetchEventMetadata(Long ticketTypeId) {
         try {
@@ -776,6 +777,7 @@ public class ResaleService {
                 .status(PayoutStatus.PENDING)
                 .build();
         sellerPayoutRepository.save(payout);
+        resalePayoutService.processResalePayout(listing.getSellerPayoutAmount(), sellerId);
 
         // Cleanup reservation session upon successful payment
         cleanupResaleSession(listing);

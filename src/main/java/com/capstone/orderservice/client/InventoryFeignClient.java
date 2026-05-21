@@ -5,10 +5,7 @@ import com.capstone.orderservice.dto.BaseResponse;
 import com.capstone.orderservice.dto.request.OrderItemRequest;
 import org.springframework.cloud.openfeign.FeignClient;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 
@@ -32,4 +29,7 @@ public interface InventoryFeignClient {
 
     @GetMapping("/event/{eventId}/allow-resale")
     boolean getAllowResale(@PathVariable Long eventId);
+
+    @GetMapping("/bank/bin-code")
+    BaseResponse<String> getBinCodeFromBankCode(@RequestParam String bankCode);
 }
