@@ -29,6 +29,7 @@ public class ResalePayoutService {
                 .binCode(inventoryFeignClient.getBinCodeFromBankCode(bankInfo.getBankCode()).getData())
                 .bankAccountNumber(bankInfo.getBankAccountNumber())
                 .build();
+        log.info("Processing resale payout request in order-service {}", request);
         paymentFeignClient.processResalePayout(request);
     }
 }

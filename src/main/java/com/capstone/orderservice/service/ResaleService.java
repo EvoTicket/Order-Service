@@ -777,6 +777,8 @@ public class ResaleService {
                 .status(PayoutStatus.PENDING)
                 .build();
         sellerPayoutRepository.save(payout);
+        log.info("Created seller payout record for resale listing {} with amount {} to seller {}",
+                listing.getListingCode(), listing.getSellerPayoutAmount(), sellerId);
         resalePayoutService.processResalePayout(listing.getSellerPayoutAmount(), sellerId);
 
         // Cleanup reservation session upon successful payment
