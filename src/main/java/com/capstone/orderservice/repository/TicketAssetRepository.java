@@ -11,8 +11,16 @@ import org.springframework.stereotype.Repository;
 import java.util.List;
 import java.util.Optional;
 
+import com.capstone.orderservice.enums.TicketAccessStatus;
+import com.capstone.orderservice.enums.TicketChainStatus;
+import java.util.Collection;
+
 @Repository
 public interface TicketAssetRepository extends JpaRepository<TicketAsset, Long> {
+    List<TicketAsset> findByAccessStatusAndTokenIdIsNotNullAndChainStatusIn(
+            TicketAccessStatus accessStatus,
+            Collection<TicketChainStatus> chainStatuses
+    );
     boolean existsByOrderItem_Id(Long orderItemId);
 
     Optional<TicketAsset> findByOrderItem_Id(Long orderItemId);

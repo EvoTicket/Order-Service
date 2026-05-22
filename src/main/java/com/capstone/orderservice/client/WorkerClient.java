@@ -41,6 +41,16 @@ public class WorkerClient {
         log.info("Successfully sent transfer request to web3-worker-service");
     }
 
+    @Async
+    public void batchUpdateCheckInStatus(Map<String, Object> payload) {
+        restClient.post()
+                .uri("/api/blockchain/batch-update-checkin-status")
+                .body(payload)
+                .retrieve()
+                .toBodilessEntity();
+        log.info("Successfully sent batch-update-checkin-status request to web3-worker-service");
+    }
+
     /**
      * Lấy lịch sử giao dịch blockchain của một ticket theo tokenId.
      */

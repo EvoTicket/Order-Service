@@ -9,6 +9,7 @@ import com.capstone.orderservice.dto.response.ResaleEligibilityResponse;
 import com.capstone.orderservice.dto.response.TicketAssetResponse;
 import com.capstone.orderservice.dto.request.Web3MintWebhookRequest;
 import com.capstone.orderservice.dto.request.Web3TransferWebhookRequest;
+import com.capstone.orderservice.dto.request.Web3BatchCheckInWebhookRequest;
 import com.capstone.orderservice.dto.event.TicketUsedEvent;
 import com.capstone.orderservice.entity.Order;
 import com.capstone.orderservice.entity.OrderItem;
@@ -374,7 +375,7 @@ public class TicketAssetService {
     }
 
     private boolean isUsedTicket(TicketAsset asset) {
-        return asset.getAccessStatus() == TicketAccessStatus.USED || asset.getUsedAt() != null;
+        return asset.getAccessStatus() == TicketAccessStatus.CHECKED_IN || asset.getUsedAt() != null;
     }
 
     private boolean isOnSaleTicket(TicketAsset asset) {
@@ -384,14 +385,14 @@ public class TicketAssetService {
 
     private String getDisplayStatusName(TicketAsset asset) {
         if (isOnSaleTicket(asset)) return "On Sale";
-        if (isUsedTicket(asset)) return "Used";
+        if (isUsedTicket(asset)) return "Checked In";
         if (asset.getChainStatus() == TicketChainStatus.MINT_PENDING) return "Mint Pending";
         return "Active";
     }
 
     private String determineTicketStatus(TicketAsset asset) {
         if (isOnSaleTicket(asset)) return "on_sale";
-        if (isUsedTicket(asset)) return "used";
+        if (isUsedTicket(asset)) return "checked_in";
         if (asset.getChainStatus() == TicketChainStatus.MINT_PENDING) return "minting";
         return "active";
     }
@@ -589,16 +590,83 @@ public class TicketAssetService {
         TicketAsset asset = ticketAssetRepository.findById(event.getTicketAssetId())
                 .orElseThrow(() -> new AppException(ErrorCode.RESOURCE_NOT_FOUND, "Ticket not found"));
 
-        if (asset.getAccessStatus() == TicketAccessStatus.USED) {
-            log.info("Ticket {} is already marked as USED, skipping", event.getTicketAssetId());
+        if (asset.getAccessStatus() == TicketAccessStatus.CHECKED_IN) {
+            log.info("Ticket {} is already marked as CHECKED_IN, skipping", event.getTicketAssetId());
             return;
         }
 
-        asset.setAccessStatus(TicketAccessStatus.USED);
+        asset.setAccessStatus(TicketAccessStatus.CHECKED_IN);
         asset.setUsedAt(LocalDateTime.ofInstant(event.getUsedAt(), ZoneId.systemDefault()));
         ticketAssetRepository.save(asset);
 
         ticketProvenanceService.recordTicketUsed(asset, event.getUsedByCheckerId(), event.getUsedAtGateId());
-        log.info("Ticket {} marked as USED via sync event", event.getTicketAssetId());
+        log.info("Ticket {} marked as CHECKED_IN via sync event", event.getTicketAssetId());
+    }
+
+    @Transactional
+    public void handleWeb3CheckInWebhook(Web3BatchCheckInWebhookRequest request) {
+        log.info("Handling web3 batch check-in webhook for job: {}, status: {}", request.getJobId(), request.getStatus());
+        
+        if (request.getTickets() != null) {
+            for (Web3BatchCheckInWebhookRequest.TicketResult ticketResult : request.getTickets()) {
+                Optional<TicketAsset> assetOpt = Optional.empty();
+                if (ticketResult.getTicketCode() != null) {
+                    assetOpt = ticketAssetRepository.findByTicketCodeOrAssetCode(ticketResult.getTicketCode(), ticketResult.getTicketCode());
+                }
+                if (assetOpt.isEmpty() && ticketResult.getTokenId() != null) {
+                    assetOpt = ticketAssetRepository.findByTokenId(ticketResult.getTokenId());
+                }
+                
+                if (assetOpt.isPresent()) {
+                    TicketAsset asset = assetOpt.get();
+                    asset.setChainStatus(TicketChainStatus.CHECKED_IN);
+                    if (ticketResult.getTransactionHash() != null) {
+                        asset.setTxHash(ticketResult.getTransactionHash());
+                    }
+                    if (ticketResult.getBlockNumber() != null) {
+                        asset.setToBlock(ticketResult.getBlockNumber());
+                    }
+                    ticketAssetRepository.save(asset);
+                    
+                    ticketProvenanceService.updateCheckInTxHash(
+                            asset.getId(),
+                            ticketResult.getTransactionHash(),
+                            ticketResult.getBlockNumber(),
+                            TicketChainStatus.CHECKED_IN.name()
+                    );
+                    log.info("Successfully updated checked-in status for ticketCode: {}, tokenId: {}", asset.getTicketCode(), asset.getTokenId());
+                } else {
+                    log.warn("Ticket not found for code: {} or tokenId: {}", ticketResult.getTicketCode(), ticketResult.getTokenId());
+                }
+            }
+        }
+        
+        if (request.getErrors() != null) {
+            for (Web3BatchCheckInWebhookRequest.TicketError ticketError : request.getErrors()) {
+                Optional<TicketAsset> assetOpt = Optional.empty();
+                if (ticketError.getTicketCode() != null) {
+                    assetOpt = ticketAssetRepository.findByTicketCodeOrAssetCode(ticketError.getTicketCode(), ticketError.getTicketCode());
+                }
+                if (assetOpt.isEmpty() && ticketError.getTokenId() != null) {
+                    assetOpt = ticketAssetRepository.findByTokenId(ticketError.getTokenId());
+                }
+                
+                if (assetOpt.isPresent()) {
+                    TicketAsset asset = assetOpt.get();
+                    asset.setChainStatus(TicketChainStatus.CHECKIN_FAILED);
+                    ticketAssetRepository.save(asset);
+                    
+                    ticketProvenanceService.updateCheckInTxHash(
+                            asset.getId(),
+                            null,
+                            null,
+                            TicketChainStatus.CHECKIN_FAILED.name()
+                    );
+                    log.error("Failed checked-in sync for ticketCode: {}, error: {}", asset.getTicketCode(), ticketError.getError());
+                } else {
+                    log.warn("Failed ticket check-in not found for code: {} or tokenId: {}", ticketError.getTicketCode(), ticketError.getTokenId());
+                }
+            }
+        }
     }
 }

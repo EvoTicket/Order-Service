@@ -172,6 +172,22 @@ public class TicketProvenanceService {
         ticketProvenanceRepository.save(provenance);
     }
 
+    @Transactional
+    public void updateCheckInTxHash(Long ticketAssetId, String txHash, Long blockNumber, String chainStatus) {
+        List<TicketProvenance> provenances = ticketProvenanceRepository.findByTicketAssetIdOrderByCreatedAtAsc(ticketAssetId);
+        for (TicketProvenance p : provenances) {
+            if (p.getActionType() == ProvenanceActionType.CHECKED_IN) {
+                p.setTxHash(txHash);
+                if (blockNumber != null) {
+                    p.setToBlock(blockNumber);
+                }
+                p.setChainStatus(chainStatus);
+                ticketProvenanceRepository.save(p);
+                log.info("Updated TicketProvenance CHECKED_IN txHash for asset {}: {}", ticketAssetId, txHash);
+            }
+        }
+    }
+
     @Transactional(readOnly = true)
     public RichTicketProvenanceResponse getProvenanceForMyTicket(Long ticketAssetId) {
         Long currentUserId = jwtUtil.getDataFromAuth().userId();
