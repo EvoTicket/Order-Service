@@ -34,7 +34,7 @@ public class RedisStreamConsumer implements StreamListener<String, MapRecord<Str
     private final RedisTemplate<String, Object> redisTemplate;
     private final OrderService orderService;
     private final com.capstone.orderservice.service.TicketAssetService ticketAssetService;
-    private final ObjectMapper objectMapper = new ObjectMapper();
+    private final ObjectMapper objectMapper;
     private static final List<String> LIST_STREAM_KEY = List.of(
             "payment-success",
             "commit-ticket-success",

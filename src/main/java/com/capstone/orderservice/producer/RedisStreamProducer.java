@@ -19,7 +19,7 @@ import java.util.Map;
 public class RedisStreamProducer {
 
     private final RedisTemplate<String, Object> redisTemplate;
-    private final ObjectMapper objectMapper = new ObjectMapper();
+    private final ObjectMapper objectMapper;
 
     /**
      * Gửi message vào Redis Stream
