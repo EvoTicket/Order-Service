@@ -378,7 +378,9 @@ public class TicketAssetService {
     }
 
     private boolean isUsedTicket(TicketAsset asset) {
-        return asset.getAccessStatus() == TicketAccessStatus.CHECKED_IN || asset.getUsedAt() != null;
+        return asset.getAccessStatus() == TicketAccessStatus.CHECKED_IN
+                || asset.getAccessStatus() == TicketAccessStatus.USED
+                || asset.getUsedAt() != null;
     }
 
     private boolean isOnSaleTicket(TicketAsset asset) {
@@ -629,7 +631,9 @@ public class TicketAssetService {
                     if (ticketResult.getBlockNumber() != null) {
                         asset.setToBlock(ticketResult.getBlockNumber());
                     }
+                    asset.setAccessStatus(TicketAccessStatus.USED);
                     ticketAssetRepository.save(asset);
+                    syncTicketAccess(asset);
                     
                     ticketProvenanceService.updateCheckInTxHash(
                             asset.getId(),
