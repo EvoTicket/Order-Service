@@ -4,6 +4,7 @@ import com.capstone.orderservice.dto.BaseResponse;
 import com.capstone.orderservice.dto.response.EventVolumeDto;
 import com.capstone.orderservice.dto.response.OrganizerOrdersStatsResponse;
 import com.capstone.orderservice.service.OrderService;
+import com.capstone.orderservice.service.TicketAssetService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -18,6 +19,7 @@ import java.util.Map;
 @RequiredArgsConstructor
 public class InternalController {
     private final OrderService orderService;
+    private final TicketAssetService ticketAssetService;
 
     @GetMapping("/orders/detail")
     public ResponseEntity<BaseResponse<OrderInternalResponse>> getOrderDetail(
@@ -56,5 +58,13 @@ public class InternalController {
             @RequestParam List<Long> eventIds,
             @RequestParam int days) {
         return ResponseEntity.ok(orderService.getOrganizerStats(eventIds, days));
+    }
+
+    @GetMapping("/tickets/{ticketAssetId}/verify-ownership")
+    public ResponseEntity<Boolean> verifyOwnership(
+            @PathVariable Long ticketAssetId,
+            @RequestParam Long currentOwnerId) {
+        boolean isOwner = ticketAssetService.verifyTicketOwnership(ticketAssetId, currentOwnerId);
+        return ResponseEntity.ok(isOwner);
     }
 }

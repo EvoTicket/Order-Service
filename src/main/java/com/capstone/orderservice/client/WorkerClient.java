@@ -1,6 +1,7 @@
 package com.capstone.orderservice.client;
 
 import com.capstone.orderservice.dto.response.RichTicketProvenanceResponse;
+import com.capstone.orderservice.dto.response.VerifyOwnershipResponse;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Component;
@@ -63,5 +64,16 @@ public class WorkerClient {
                         .build(tokenId))
                 .retrieve()
                 .body(RichTicketProvenanceResponse.class);
+    }
+
+    /**
+     * Xác thực quyền sở hữu ticket trên blockchain.
+     */
+    public VerifyOwnershipResponse verifyOwnership(Long tokenId, String userId) {
+        return restClient.post()
+                .uri("/api/blockchain/verify-ownership")
+                .body(Map.of("tokenId", tokenId, "userID", userId))
+                .retrieve()
+                .body(VerifyOwnershipResponse.class);
     }
 }

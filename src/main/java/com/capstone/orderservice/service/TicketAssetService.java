@@ -2,11 +2,13 @@ package com.capstone.orderservice.service;
 
 import com.capstone.orderservice.client.EventDetailInternalResponse;
 import com.capstone.orderservice.client.InventoryFeignClient;
+import com.capstone.orderservice.client.WorkerClient;
 import com.capstone.orderservice.dto.BaseResponse;
 import com.capstone.orderservice.dto.response.MyTicketGroupResponse;
 import com.capstone.orderservice.dto.response.MyTicketItemResponse;
 import com.capstone.orderservice.dto.response.ResaleEligibilityResponse;
 import com.capstone.orderservice.dto.response.TicketAssetResponse;
+import com.capstone.orderservice.dto.response.VerifyOwnershipResponse;
 import com.capstone.orderservice.dto.request.Web3MintWebhookRequest;
 import com.capstone.orderservice.dto.request.Web3TransferWebhookRequest;
 import com.capstone.orderservice.dto.request.Web3BatchCheckInWebhookRequest;
@@ -57,6 +59,7 @@ public class TicketAssetService {
     private final TicketProvenanceService ticketProvenanceService;
     private final ResaleListingRepository resaleListingRepository;
     private final RedisStreamProducer redisStreamProducer;
+    private final WorkerClient workerClient;
 
     @Transactional
     public void issueTicketsForConfirmedOrder(Order order) {
@@ -667,6 +670,28 @@ public class TicketAssetService {
                     log.warn("Failed ticket check-in not found for code: {} or tokenId: {}", ticketError.getTicketCode(), ticketError.getTokenId());
                 }
             }
+        }
+    }
+
+    public boolean verifyTicketOwnership(Long ticketAssetId, Long currentOwnerId) {
+        try {
+            TicketAsset asset = ticketAssetRepository.findById(ticketAssetId)
+                    .orElseThrow(() -> new com.capstone.orderservice.exception.AppException(
+                            com.capstone.orderservice.exception.ErrorCode.RESOURCE_NOT_FOUND, "Ticket not found"));
+
+            String tokenIdStr = asset.getTokenId();
+            if (tokenIdStr == null || tokenIdStr.isBlank()) {
+                log.warn("TicketAsset {} has no tokenId, cannot verify ownership on-chain", ticketAssetId);
+                return false;
+            }
+
+            Long tokenId = Long.parseLong(tokenIdStr);
+
+            VerifyOwnershipResponse response = workerClient.verifyOwnership(tokenId, currentOwnerId.toString());
+            return response != null && "owned".equalsIgnoreCase(response.getStatus());
+        } catch (Exception e) {
+            log.error("Error verifying ticket ownership for ticketAssetId: {} and owner: {}", ticketAssetId, currentOwnerId, e);
+            return false;
         }
     }
 }
