@@ -138,7 +138,6 @@ public class TicketAssetService {
                 .collect(Collectors.joining(" · "));
 
             List<MyTicketItemResponse> tickets = groupAssets.stream().map(asset -> {
-                String status = determineTicketStatus(asset);
                 
                 ResaleListing listing = asset.getCurrentResaleListingId() != null 
                     ? listingMap.get(asset.getCurrentResaleListingId()) 
@@ -154,7 +153,8 @@ public class TicketAssetService {
                         .contractAddress(asset.getContractAddress())
                         .fromBlock(asset.getFromBlock())
                         .toBlock(asset.getToBlock())
-                        .status(status)
+                        .ticketAccessStatus(asset.getAccessStatus())
+                        .ticketChainStatus(asset.getChainStatus())
                         .listingCode(listing != null ? listing.getListingCode() : null)
                         .listingPrice(listing != null ? listing.getListingPrice() : null)
                         .build();
@@ -375,10 +375,6 @@ public class TicketAssetService {
         return new EligibilityDecision(true, "ELIGIBLE", "Ticket is eligible for resale");
     }
 
-    private boolean isActiveTicket(TicketAsset asset) {
-        return asset.getAccessStatus() == TicketAccessStatus.VALID && asset.getUsedAt() == null;
-    }
-
     private boolean isUsedTicket(TicketAsset asset) {
         return asset.getAccessStatus() == TicketAccessStatus.CHECKED_IN
                 || asset.getAccessStatus() == TicketAccessStatus.USED
@@ -397,12 +393,6 @@ public class TicketAssetService {
         return "Active";
     }
 
-    private String determineTicketStatus(TicketAsset asset) {
-        if (isOnSaleTicket(asset)) return "on_sale";
-        if (isUsedTicket(asset)) return "checked_in";
-        if (asset.getChainStatus() == TicketChainStatus.MINT_PENDING) return "minting";
-        return "active";
-    }
 
     private record EligibilityDecision(boolean canResell, String reasonCode, String reasonMessage) {
     }

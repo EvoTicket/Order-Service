@@ -1,5 +1,7 @@
 package com.capstone.orderservice.dto.response;
 
+import com.capstone.orderservice.enums.TicketAccessStatus;
+import com.capstone.orderservice.enums.TicketChainStatus;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -21,7 +23,8 @@ public class MyTicketItemResponse {
     private String contractAddress;
     private Long fromBlock;
     private Long toBlock;
-    private String status;
+    private TicketAccessStatus ticketAccessStatus;
+    private TicketChainStatus ticketChainStatus;
     private String listingCode;
     private BigDecimal listingPrice;
 }
