@@ -82,4 +82,19 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
         ORDER BY CAST(o.createdAt AS date) ASC
     """)
     List<Object[]> getDailyRevenueTrendForEvents(@Param("eventIds") List<Long> eventIds, @Param("since") LocalDateTime since);
+
+    @Query("SELECT o.eventId, SUM(o.finalAmount) " +
+           "FROM Order o " +
+           "WHERE o.eventId IN :eventIds AND o.orderStatus = 'CONFIRMED' AND o.createdAt >= :todayStart " +
+           "GROUP BY o.eventId")
+    List<Object[]> getRevenueTodayForEvents(@Param("eventIds") List<Long> eventIds,
+                                            @Param("todayStart") LocalDateTime todayStart);
+
+    @Query("SELECT o.eventId, COUNT(oi.id) " +
+           "FROM Order o JOIN o.orderItems oi " +
+           "WHERE o.eventId IN :eventIds AND o.orderStatus = 'CONFIRMED' AND o.createdAt >= :startDate AND o.createdAt < :endDate " +
+           "GROUP BY o.eventId")
+    List<Object[]> getTicketsSoldForEvents(@Param("eventIds") List<Long> eventIds,
+                                           @Param("startDate") LocalDateTime startDate,
+                                           @Param("endDate") LocalDateTime endDate);
 }

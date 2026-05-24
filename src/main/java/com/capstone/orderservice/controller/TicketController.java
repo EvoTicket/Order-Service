@@ -8,6 +8,7 @@ import com.capstone.orderservice.dto.response.TicketAssetResponse;
 import com.capstone.orderservice.dto.response.TicketProvenanceResponse;
 import com.capstone.orderservice.service.TicketAssetService;
 import com.capstone.orderservice.service.TicketProvenanceService;
+import com.capstone.orderservice.scheduler.CheckInSyncScheduler;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -30,6 +31,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 public class TicketController {
     private final TicketAssetService ticketAssetService;
     private final TicketProvenanceService ticketProvenanceService;
+    private final CheckInSyncScheduler checkInSyncScheduler;
 
     @Operation(summary = "Lấy danh sách vé của tôi", description = "Trả về danh sách tất cả các vé mà người dùng hiện tại đang sở hữu.")
     @GetMapping("/me")
@@ -71,5 +73,12 @@ public class TicketController {
             return ResponseEntity.status(e.getErrorCode().getStatus())
                     .body(Map.of("error", e.getCustomMessage() != null ? e.getCustomMessage() : e.getErrorCode().getDefaultMessage()));
         }
+    }
+
+    @Operation(summary = "Đồng bộ vé đã check-in lên blockchain thủ công", description = "Chạy thủ công tác vụ đồng bộ trạng thái check-in của vé lên blockchain.")
+    @PostMapping("/sync-blockchain")
+    public ResponseEntity<BaseResponse<String>> syncCheckedInTickets() {
+        checkInSyncScheduler.syncCheckedInTicketsToBlockchain();
+        return ResponseEntity.ok(BaseResponse.ok("Đồng bộ thành công", "SUCCESS"));
     }
 }

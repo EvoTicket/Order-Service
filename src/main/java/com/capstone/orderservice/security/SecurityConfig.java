@@ -55,7 +55,7 @@ public class SecurityConfig {
                         .requestMatchers("/actuator/**").permitAll()
 
                         .requestMatchers("/api/internal/**").hasRole("INTERNAL_SERVICE")
-                        .requestMatchers("/api/v1/webhook/web3/mint-ticket").permitAll()
+                        .requestMatchers("/api/v1/webhook/web3/**").permitAll()
                         .requestMatchers("/api/v1/webhook/web3/transfer-ticket").permitAll()
 
                         .requestMatchers(HttpMethod.GET, "/api/locations/**").permitAll()

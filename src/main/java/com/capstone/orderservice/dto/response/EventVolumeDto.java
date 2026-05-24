@@ -15,4 +15,7 @@ public class EventVolumeDto {
     private Long eventId;
     private BigDecimal volume24h;
     private Double hotness;
+    private BigDecimal revenueToday;
+    private Long ticketsToday;
+    private Long ticketsYesterday;
 }

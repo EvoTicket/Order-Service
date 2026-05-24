@@ -449,7 +449,35 @@ public class OrderService {
         LocalDateTime oneDayAgo = now.minusDays(1);
         LocalDateTime twoDaysAgo = now.minusDays(2);
 
+        LocalDateTime todayStart = LocalDate.now().atStartOfDay();
+        LocalDateTime tomorrowStart = todayStart.plusDays(1);
+        LocalDateTime yesterdayStart = todayStart.minusDays(1);
+
         List<Object[]> results = orderRepository.calculateVolumeForEvents(eventIds, oneDayAgo, twoDaysAgo);
+
+        List<Object[]> revTodayResults = orderRepository.getRevenueTodayForEvents(eventIds, todayStart);
+        Map<Long, BigDecimal> revenueTodayMap = revTodayResults.stream()
+                .collect(Collectors.toMap(
+                        row -> (Long) row[0],
+                        row -> row[1] != null ? (BigDecimal) row[1] : BigDecimal.ZERO,
+                        (existing, replacement) -> existing
+                ));
+
+        List<Object[]> ticketsTodayResults = orderRepository.getTicketsSoldForEvents(eventIds, todayStart, tomorrowStart);
+        Map<Long, Long> ticketsTodayMap = ticketsTodayResults.stream()
+                .collect(Collectors.toMap(
+                        row -> (Long) row[0],
+                        row -> (Long) row[1],
+                        (existing, replacement) -> existing
+                ));
+
+        List<Object[]> ticketsYesterdayResults = orderRepository.getTicketsSoldForEvents(eventIds, yesterdayStart, todayStart);
+        Map<Long, Long> ticketsYesterdayMap = ticketsYesterdayResults.stream()
+                .collect(Collectors.toMap(
+                        row -> (Long) row[0],
+                        row -> (Long) row[1],
+                        (existing, replacement) -> existing
+                ));
 
         return results.stream()
                 .map(row -> {
@@ -457,10 +485,17 @@ public class OrderService {
                     BigDecimal volume24h = row[1] != null ? (BigDecimal) row[1] : BigDecimal.ZERO;
                     BigDecimal volumePrev24h = row[2] != null ? (BigDecimal) row[2] : BigDecimal.ZERO;
 
+                    BigDecimal revenueTodayVal = revenueTodayMap.getOrDefault(eventId, BigDecimal.ZERO);
+                    Long ticketsTodayVal = ticketsTodayMap.getOrDefault(eventId, 0L);
+                    Long ticketsYesterdayVal = ticketsYesterdayMap.getOrDefault(eventId, 0L);
+
                     return EventVolumeDto.builder()
                             .eventId(eventId)
                             .volume24h(volume24h)
                             .hotness(getHotness(volume24h, volumePrev24h))
+                            .revenueToday(revenueTodayVal)
+                            .ticketsToday(ticketsTodayVal)
+                            .ticketsYesterday(ticketsYesterdayVal)
                             .build();
                 })
                 .collect(Collectors.toMap(EventVolumeDto::getEventId, dto -> dto));
