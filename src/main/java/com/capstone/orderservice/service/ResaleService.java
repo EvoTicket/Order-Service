@@ -42,6 +42,9 @@ import com.capstone.orderservice.repository.ResaleListingSpecification;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import com.capstone.orderservice.dto.response.ResaleReserveResponse;
 import com.capstone.orderservice.dto.response.ResaleSessionResponse;
+import com.capstone.orderservice.dto.BasePageResponse;
+import org.springframework.cache.annotation.Cacheable;
+import org.springframework.cache.CacheManager;
 import java.util.concurrent.TimeUnit;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.transaction.support.TransactionSynchronization;
@@ -90,6 +93,25 @@ public class ResaleService {
     private final IamFeignClient iamFeignClient;
     private final WorkerClient workerClient;
     private final ResalePayoutService resalePayoutService;
+    private final CacheManager cacheManager;
+
+    private void evictResaleCaches(String listingCode) {
+        try {
+            if (listingCode != null) {
+                var detailCache = cacheManager.getCache("resaleListingDetail");
+                if (detailCache != null) {
+                    detailCache.evict(listingCode);
+                }
+            }
+            var listCache = cacheManager.getCache("resaleActiveListings");
+            if (listCache != null) {
+                listCache.clear();
+            }
+            log.info("Evicted resale caches. ListingCode={}", listingCode);
+        } catch (Exception e) {
+            log.error("Failed to evict resale caches", e);
+        }
+    }
 
     private EventDetailInternalResponse fetchEventMetadata(Long ticketTypeId) {
         try {
@@ -200,6 +222,8 @@ public class ResaleService {
 
         ticketProvenanceService.recordResaleListed(asset, savedListing);
 
+        evictResaleCaches(savedListing.getListingCode());
+
         return ResaleListingResponse.fromEntity(savedListing);
     }
 
@@ -231,11 +255,14 @@ public class ResaleService {
         ResaleListing savedListing = resaleListingRepository.save(listing);
         ticketProvenanceService.recordResaleCancelled(asset, savedListing);
 
+        evictResaleCaches(listingCode);
+
         return ResaleListingResponse.fromEntity(savedListing);
     }
 
+    @Cacheable(value = "resaleActiveListings", key = "T(java.util.Objects).hash(#eventId, #ticketTypeId, #minPrice, #maxPrice, #listingCode, #categories, #provinceCode, #keyword, #startTime, #endTime, #sortOption, #pageable.pageNumber, #pageable.pageSize)")
     @Transactional(readOnly = true)
-    public Page<ResaleListingResponse> getActiveListings(
+    public BasePageResponse<ResaleListingResponse> getActiveListings(
             Long eventId,
             Long ticketTypeId,
             BigDecimal minPrice,
@@ -275,7 +302,7 @@ public class ResaleService {
         Page<ResaleListing> listingsPage = resaleListingRepository.findAll(spec, sortedPageable);
         
         if (listingsPage.isEmpty()) {
-            return Page.empty(sortedPageable);
+            return new BasePageResponse<>(List.of(), sortedPageable.getPageNumber(), sortedPageable.getPageSize(), 0, 0, true);
         }
 
         // Fetch ticket type details from inventory service
@@ -294,7 +321,7 @@ public class ResaleService {
             log.error("Failed to fetch ticket details from inventory service", e);
         }
 
-        return listingsPage.map(listing -> {
+        Page<ResaleListingResponse> mappedPage = listingsPage.map(listing -> {
             TicketTypeInternalResponse details = ticketDetailsMap.get(listing.getTicketAsset().getTicketTypeId());
             ResaleListingResponse response = ResaleListingResponse.fromEntity(listing, details);
             if (details != null) {
@@ -312,10 +339,23 @@ public class ResaleService {
             }
             return response;
         });
+
+        return BasePageResponse.fromPage(mappedPage);
     }
 
     @Transactional
     public ResaleListingResponse getActiveListingDetail(String listingCode) {
+        ResaleListingResponse response = getCachedActiveListingDetail(listingCode);
+
+        // Increment view count asynchronously via separate service (runs on every hit)
+        resaleListingStatsService.incrementListingViewCount(response.getListingId());
+
+        return response;
+    }
+
+    @Cacheable(value = "resaleListingDetail", key = "#listingCode")
+    @Transactional(readOnly = true)
+    public ResaleListingResponse getCachedActiveListingDetail(String listingCode) {
         // Using ForUpdate to apply pessimistic lock as requested
         ResaleListing listing = resaleListingRepository.findByListingCodeForUpdate(listingCode)
                 .orElseThrow(() -> new AppException(ErrorCode.RESOURCE_NOT_FOUND, "Resale listing not found"));
@@ -323,9 +363,6 @@ public class ResaleService {
         if (listing.getStatus() != ResaleListingStatus.ACTIVE) {
             throw new AppException(ErrorCode.RESOURCE_NOT_FOUND, "Resale listing not found");
         }
-
-        // Increment view count asynchronously via separate service
-        resaleListingStatsService.incrementListingViewCount(listing.getId());
 
         // Fetch ticket type details from inventory service
         TicketTypeInternalResponse details = null;
@@ -390,6 +427,8 @@ public class ResaleService {
         resaleListingRepository.save(listing);
 
         redisTemplate.opsForValue().set(redisKey, listingCode, RESALE_RESERVATION_TTL_MINUTES, TimeUnit.MINUTES);
+
+        evictResaleCaches(listingCode);
 
         return ResaleReserveResponse.builder()
                 .resaleSessionId(sessionId)
@@ -470,6 +509,8 @@ public class ResaleService {
         // Session is kept until payment success or expiration
         // redisTemplate.delete(redisKey); 
 
+        evictResaleCaches(listing.getListingCode());
+
         return ResaleCheckoutResponse.builder()
                 .listingCode(listing.getListingCode())
                 .listingId(listing.getId())
@@ -501,6 +542,7 @@ public class ResaleService {
                 listing.setStatus(ResaleListingStatus.ACTIVE);
                 listing.setReservationSessionId(null);
                 listing.setReservedUntil(null);
+                evictResaleCaches(listing.getListingCode());
             }
             resaleListingRepository.saveAll(expiredReservations);
         }
@@ -769,6 +811,8 @@ public class ResaleService {
         resaleListingRepository.save(listing);
         orderRepository.save(order);
 
+        evictResaleCaches(listing.getListingCode());
+
         // Create seller payout record
         SellerPayout payout = SellerPayout.builder()
                 .resaleListing(listing)
@@ -824,6 +868,7 @@ public class ResaleService {
         resaleListingRepository.findByPaymentOrder_IdForUpdate(order.getId()).ifPresent(listing -> {
             cleanupResaleSession(listing);
             resaleListingRepository.save(listing);
+            evictResaleCaches(listing.getListingCode());
         });
     }
 
@@ -1003,6 +1048,7 @@ public class ResaleService {
 
         resaleListingRepository.save(listing);
         orderRepository.save(order);
+        evictResaleCaches(listing.getListingCode());
     }
 
     private boolean isResaleOrder(Order order) {

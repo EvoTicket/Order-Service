@@ -61,7 +61,7 @@ public class ResaleController {
                         @RequestParam(defaultValue = "0") int page,
                         @RequestParam(defaultValue = "20") int size) {
                 Pageable pageable = PageRequest.of(page, size);
-                Page<ResaleListingResponse> listings = resaleService.getActiveListings(
+                BasePageResponse<ResaleListingResponse> listings = resaleService.getActiveListings(
                                 eventId,
                                 ticketTypeId,
                                 minPrice,
@@ -75,8 +75,7 @@ public class ResaleController {
                                 sortBy,
                                 pageable);
 
-                return ResponseEntity.ok(BaseResponse.ok("Fetched resale listings successfully",
-                                BasePageResponse.fromPage(listings)));
+                return ResponseEntity.ok(BaseResponse.ok("Fetched resale listings successfully", listings));
         }
 
         @Operation(summary = "Xem chi tiết tin đăng bán", description = "Lấy thông tin chi tiết của một tin đăng bán vé cụ thể qua mã tin.")

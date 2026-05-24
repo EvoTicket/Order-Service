@@ -8,12 +8,14 @@ import org.springframework.scheduling.annotation.EnableAsync;
 import org.springframework.scheduling.annotation.EnableScheduling;
 import org.springframework.scheduling.annotation.Scheduled;
 
+import org.springframework.cache.annotation.EnableCaching;
 import java.util.TimeZone;
 
 @SpringBootApplication
 @EnableFeignClients
 @EnableScheduling
 @EnableAsync
+@EnableCaching
 public class OrderServiceApplication {
 
 	@PostConstruct
