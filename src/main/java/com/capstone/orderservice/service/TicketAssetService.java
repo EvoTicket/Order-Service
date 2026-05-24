@@ -593,6 +593,7 @@ public class TicketAssetService {
         }
 
         asset.setAccessStatus(TicketAccessStatus.CHECKED_IN);
+        asset.setChainStatus(TicketChainStatus.CHECKED_IN);
         asset.setUsedAt(LocalDateTime.ofInstant(event.getUsedAt(), ZoneId.systemDefault()));
         ticketAssetRepository.save(asset);
 
