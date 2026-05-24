@@ -706,6 +706,9 @@ public class TicketAssetService {
         if (asset.getAccessStatus() != TicketAccessStatus.USED) {
             throw new AppException(ErrorCode.BAD_REQUEST, "Chỉ những vé đã check-in mới có thể rút.");
         }
+
+        asset.setChainStatus(TicketChainStatus.WITHDRAW_PENDING);
+        ticketAssetRepository.save(asset);
         
         return workerClient.withdrawTicket(tokenId, personalWallet, currentUserId.toString());
     }
@@ -735,6 +738,7 @@ public class TicketAssetService {
         
         if (isSuccess) {
             asset.setAccessStatus(TicketAccessStatus.WITHDRAWN);
+            asset.setChainStatus(TicketChainStatus.WITHDRAWN);
             if (request.getBlockNumber() != null) {
                 asset.setToBlock(request.getBlockNumber());
             }

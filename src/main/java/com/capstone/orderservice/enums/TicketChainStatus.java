@@ -10,5 +10,7 @@ public enum TicketChainStatus {
     TRANSFER_FAILED,
     CHECKIN_PENDING,
     CHECKED_IN,
-    CHECKIN_FAILED
+    CHECKIN_FAILED,
+    WITHDRAW_PENDING,
+    WITHDRAWN,
 }
