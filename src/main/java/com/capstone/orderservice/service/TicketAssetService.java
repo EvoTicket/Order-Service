@@ -9,9 +9,11 @@ import com.capstone.orderservice.dto.response.MyTicketItemResponse;
 import com.capstone.orderservice.dto.response.ResaleEligibilityResponse;
 import com.capstone.orderservice.dto.response.TicketAssetResponse;
 import com.capstone.orderservice.dto.response.VerifyOwnershipResponse;
+import com.capstone.orderservice.dto.response.WithdrawResponse;
 import com.capstone.orderservice.dto.request.Web3MintWebhookRequest;
 import com.capstone.orderservice.dto.request.Web3TransferWebhookRequest;
 import com.capstone.orderservice.dto.request.Web3BatchCheckInWebhookRequest;
+import com.capstone.orderservice.dto.request.Web3WithdrawWebhookRequest;
 import com.capstone.orderservice.dto.event.TicketUsedEvent;
 import com.capstone.orderservice.entity.Order;
 import com.capstone.orderservice.entity.OrderItem;
@@ -697,5 +699,61 @@ public class TicketAssetService {
             log.error("Error verifying ticket ownership for ticketAssetId: {} and owner: {}", ticketAssetId, currentOwnerId, e);
             return false;
         }
+    }
+
+    @Transactional
+    public WithdrawResponse withdrawTicket(Long tokenId, String personalWallet) {
+        Long currentUserId = jwtUtil.getDataFromAuth().userId();
+        
+        TicketAsset asset = ticketAssetRepository.findByTokenId(tokenId.toString())
+                .orElseThrow(() -> new AppException(ErrorCode.RESOURCE_NOT_FOUND, "Không tìm thấy vé với tokenId: " + tokenId));
+                
+        if (!currentUserId.equals(asset.getCurrentOwnerId())) {
+            throw new AppException(ErrorCode.FORBIDDEN, "Bạn không sở hữu vé này.");
+        }
+        
+        if (asset.getAccessStatus() != TicketAccessStatus.USED) {
+            throw new AppException(ErrorCode.BAD_REQUEST, "Chỉ những vé đã check-in mới có thể rút.");
+        }
+        
+        return workerClient.withdrawTicket(tokenId, personalWallet, currentUserId.toString());
+    }
+
+    @Transactional
+    public void handleWeb3WithdrawWebhook(Web3WithdrawWebhookRequest request) {
+        log.info("Handling web3 withdraw webhook for job: {}, status: {}", request.getJobId(), request.getStatus());
+        
+        Long tokenId = null;
+        if (request.getData() != null) {
+            tokenId = request.getData().getTokenId();
+        }
+        
+        if (tokenId == null) {
+            log.warn("Web3 withdraw webhook received without tokenId. JobId: {}", request.getJobId());
+            return;
+        }
+        
+        Optional<TicketAsset> assetOpt = ticketAssetRepository.findByTokenId(tokenId.toString());
+        if (assetOpt.isEmpty()) {
+            log.warn("Ticket not found for tokenId: {}", tokenId);
+            return;
+        }
+        
+        TicketAsset asset = assetOpt.get();
+        boolean isSuccess = "success".equalsIgnoreCase(request.getStatus());
+        
+        if (isSuccess) {
+            asset.setAccessStatus(TicketAccessStatus.WITHDRAWN);
+            if (request.getBlockNumber() != null) {
+                asset.setToBlock(request.getBlockNumber());
+            }
+            log.info("Successfully processed withdraw webhook (success) for tokenId: {}", tokenId);
+        } else {
+            asset.setAccessStatus(TicketAccessStatus.CHECKED_IN);
+            log.warn("Withdraw failed for tokenId: {}. Error: {}", tokenId, request.getError());
+        }
+        
+        TicketAsset savedAsset = ticketAssetRepository.save(asset);
+        syncTicketAccess(savedAsset);
     }
 }

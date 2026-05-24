@@ -12,8 +12,14 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import com.capstone.orderservice.dto.request.WithdrawTicketRequest;
+import com.capstone.orderservice.dto.response.WithdrawResponse;
+import com.capstone.orderservice.exception.AppException;
+import java.util.Map;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 
@@ -53,5 +59,17 @@ public class TicketController {
     ) {
         return ResponseEntity.ok(BaseResponse.ok("Fetched ticket provenance successfully",
                 ticketProvenanceService.getProvenanceForMyTicket(ticketAssetId)));
+    }
+
+    @Operation(summary = "Rút vé về ví cá nhân", description = "Gửi yêu cầu rút vé NFT từ ví custodial sang ví cá nhân.")
+    @PostMapping("/withdraw")
+    public ResponseEntity<?> withdrawTicket(@RequestBody WithdrawTicketRequest request) {
+        try {
+            WithdrawResponse response = ticketAssetService.withdrawTicket(request.getTokenId(), request.getPersonalWallet());
+            return ResponseEntity.ok(response);
+        } catch (AppException e) {
+            return ResponseEntity.status(e.getErrorCode().getStatus())
+                    .body(Map.of("error", e.getCustomMessage() != null ? e.getCustomMessage() : e.getErrorCode().getDefaultMessage()));
+        }
     }
 }

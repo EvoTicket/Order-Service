@@ -5,6 +5,7 @@ public enum TicketAccessStatus {
     LOCKED_RESALE,
     CHECKED_IN,
     USED,
-    CANCELLED
+    CANCELLED,
+    WITHDRAWN
 }
 

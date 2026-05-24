@@ -2,6 +2,7 @@ package com.capstone.orderservice.client;
 
 import com.capstone.orderservice.dto.response.RichTicketProvenanceResponse;
 import com.capstone.orderservice.dto.response.VerifyOwnershipResponse;
+import com.capstone.orderservice.dto.response.WithdrawResponse;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Component;
@@ -15,6 +16,7 @@ public class WorkerClient {
 
     private static final String BASE_URL = "http://web3-worker-service:4500";
     private final RestClient restClient = RestClient.create(BASE_URL);
+    private final com.fasterxml.jackson.databind.ObjectMapper objectMapper = new com.fasterxml.jackson.databind.ObjectMapper();
 
     /**
      * Gọi web3-worker-service để mint NFT ticket sau khi đặt vé thành công.
@@ -75,5 +77,32 @@ public class WorkerClient {
                 .body(Map.of("tokenId", tokenId, "userID", userId))
                 .retrieve()
                 .body(VerifyOwnershipResponse.class);
+    }
+
+    /**
+     * Rút vé NFT từ ví custodial sang ví cá nhân của người dùng.
+     */
+    public WithdrawResponse withdrawTicket(Long tokenId, String personalWallet, String userId) {
+        try {
+            return restClient.post()
+                    .uri("/api/blockchain/withdraw")
+                    .body(Map.of("tokenId", tokenId, "personalWallet", personalWallet, "userID", userId))
+                    .retrieve()
+                    .body(WithdrawResponse.class);
+        } catch (org.springframework.web.client.HttpClientErrorException e) {
+            log.error("Error from web3-worker-service when withdrawing ticket: {}", e.getResponseBodyAsString());
+            try {
+                Map<?, ?> errMap = objectMapper.readValue(e.getResponseBodyAsString(), Map.class);
+                String errorMsg = (String) errMap.get("error");
+                if (errorMsg != null && !errorMsg.isBlank()) {
+                    throw new com.capstone.orderservice.exception.AppException(com.capstone.orderservice.exception.ErrorCode.BAD_REQUEST, errorMsg);
+                }
+            } catch (com.capstone.orderservice.exception.AppException ex) {
+                throw ex;
+            } catch (Exception ex) {
+                log.error("Failed to parse error response from worker service", ex);
+            }
+            throw new com.capstone.orderservice.exception.AppException(com.capstone.orderservice.exception.ErrorCode.BAD_REQUEST, "Lỗi từ hệ thống blockchain worker.");
+        }
     }
 }
