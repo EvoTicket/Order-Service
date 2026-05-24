@@ -14,6 +14,7 @@ public class BookingSessionData {
     private LocalDateTime time;
     private String venue;
     private BigDecimal totalAmount;
+    private boolean allowDiscountCode;
 
     @Data
     public static class BookingItem {
