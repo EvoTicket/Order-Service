@@ -31,7 +31,7 @@ public class CheckInSyncScheduler {
 
         List<TicketAsset> ticketsToSync = ticketAssetRepository.findByAccessStatusAndTokenIdIsNotNullAndChainStatusIn(
                 TicketAccessStatus.CHECKED_IN,
-                List.of(TicketChainStatus.MINTED, TicketChainStatus.TRANSFERRED, TicketChainStatus.CHECKIN_FAILED)
+                List.of(TicketChainStatus.CHECKED_IN, TicketChainStatus.MINTED, TicketChainStatus.TRANSFERRED, TicketChainStatus.CHECKIN_FAILED)
         );
 
         if (ticketsToSync.isEmpty()) {
@@ -55,7 +55,7 @@ public class CheckInSyncScheduler {
 
             Map<String, Object> ticketMap = new HashMap<>();
             ticketMap.put("ticketCode", ticket.getTicketCode());
-            ticketMap.put("tokenId", ticket.getTokenId());
+            ticketMap.put("tokenId", Long.parseLong(ticket.getTokenId()));
             ticketMap.put("eventId", String.valueOf(ticket.getEventId()));
             ticketMap.put("checkinTime", checkinTimeStr);
 
