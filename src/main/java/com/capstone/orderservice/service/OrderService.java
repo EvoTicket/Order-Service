@@ -23,6 +23,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.redis.core.RedisTemplate;
@@ -58,6 +59,9 @@ public class OrderService {
     private final ResaleService resaleService;
     private final ResaleListingRepository resaleListingRepository;
     private final WorkerClient workerClient;
+
+    @Value("${evoticket.platform-fee-rate:0.02}")
+    private BigDecimal platformFeeRate;
 
     @Transactional
     public PaymentLinkResponse createOrder(CreateOrderRequest request) {
@@ -112,7 +116,7 @@ public class OrderService {
         if (listTicketTypesInternalResponse == null) {
             throw new AppException(ErrorCode.INTERNAL_SERVER_ERROR, "Lấy ticket lỗi");
         }
-        if(!listTicketTypesInternalResponse.isAllowDiscountCode() &&  request.getVoucherCode() != null){
+        if (!listTicketTypesInternalResponse.isAllowDiscountCode() && request.getVoucherCode() != null) {
             throw new AppException(ErrorCode.BAD_REQUEST, "Mã giảm giá không được áp dụng cho đơn hàng này");
         }
 
@@ -147,7 +151,8 @@ public class OrderService {
 
         orderRepository.save(order);
 
-        OrderInternalResponse requestToPayment = OrderInternalResponse.fromRequest(request, orderCode, order.getFinalAmount(),
+        OrderInternalResponse requestToPayment = OrderInternalResponse.fromRequest(request, orderCode,
+                order.getFinalAmount(),
                 listTicketTypesInternalResponse);
         log.info("locale : {}", requestToPayment.getLocale());
 
@@ -204,18 +209,19 @@ public class OrderService {
         payload.put("tickets", ticketsPayload);
 
         TransactionSynchronizationManager.registerSynchronization(
-            new TransactionSynchronization() {
-                @Override
-                public void afterCommit() {
-                    try {
-                        workerClient.mintOrder(payload);
-                        log.info("Successfully sent mint-order request to web3-worker-service for order {}", order.getOrderCode());
-                    } catch (Exception e) {
-                        log.error("Failed to call web3-worker-service for minting order {}", order.getOrderCode(), e);
+                new TransactionSynchronization() {
+                    @Override
+                    public void afterCommit() {
+                        try {
+                            workerClient.mintOrder(payload);
+                            log.info("Successfully sent mint-order request to web3-worker-service for order {}",
+                                    order.getOrderCode());
+                        } catch (Exception e) {
+                            log.error("Failed to call web3-worker-service for minting order {}", order.getOrderCode(),
+                                    e);
+                        }
                     }
-                }
-            }
-        );
+                });
 
         DateTimeFormatter dateFormatter = DateTimeFormatter.ofPattern("EEEE, dd/MM/yyyy", Locale.forLanguageTag("vi"));
         DateTimeFormatter timeFormatter = DateTimeFormatter.ofPattern("HH:mm");
@@ -460,24 +466,23 @@ public class OrderService {
                 .collect(Collectors.toMap(
                         row -> (Long) row[0],
                         row -> row[1] != null ? (BigDecimal) row[1] : BigDecimal.ZERO,
-                        (existing, replacement) -> existing
-                ));
+                        (existing, replacement) -> existing));
 
-        List<Object[]> ticketsTodayResults = orderRepository.getTicketsSoldForEvents(eventIds, todayStart, tomorrowStart);
+        List<Object[]> ticketsTodayResults = orderRepository.getTicketsSoldForEvents(eventIds, todayStart,
+                tomorrowStart);
         Map<Long, Long> ticketsTodayMap = ticketsTodayResults.stream()
                 .collect(Collectors.toMap(
                         row -> (Long) row[0],
                         row -> (Long) row[1],
-                        (existing, replacement) -> existing
-                ));
+                        (existing, replacement) -> existing));
 
-        List<Object[]> ticketsYesterdayResults = orderRepository.getTicketsSoldForEvents(eventIds, yesterdayStart, todayStart);
+        List<Object[]> ticketsYesterdayResults = orderRepository.getTicketsSoldForEvents(eventIds, yesterdayStart,
+                todayStart);
         Map<Long, Long> ticketsYesterdayMap = ticketsYesterdayResults.stream()
                 .collect(Collectors.toMap(
                         row -> (Long) row[0],
                         row -> (Long) row[1],
-                        (existing, replacement) -> existing
-                ));
+                        (existing, replacement) -> existing));
 
         return results.stream()
                 .map(row -> {
@@ -541,9 +546,7 @@ public class OrderService {
         BigDecimal totalGmv = orderRepository.getTotalGmvAllTime();
         long totalTicketsSold = orderRepository.getTotalTicketsSoldAllTime();
 
-        // Giả sử doanh thu phí sàn là 2.5% của GMV (có thể điều chỉnh hoặc tính toán từ
-        // ResaleService)
-        BigDecimal totalRevenue = totalGmv.multiply(new BigDecimal("0.025")).setScale(2, RoundingMode.HALF_UP);
+        BigDecimal totalRevenue = totalGmv.multiply(platformFeeRate).setScale(2, RoundingMode.HALF_UP);
 
         LocalDateTime startDate = LocalDateTime.now().minusDays(days);
         List<Object[]> dailyResults = orderRepository.getDailyStats(startDate);

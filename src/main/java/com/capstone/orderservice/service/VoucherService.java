@@ -27,7 +27,6 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDateTime;
-import java.util.List;
 
 @Service
 @RequiredArgsConstructor
@@ -36,8 +35,8 @@ public class VoucherService {
     private final VoucherRepository voucherRepository;
     private final VoucherUtil voucherUtil;
     private final OrderRepository orderRepository;
-    private final org.springframework.data.redis.core.RedisTemplate<String, Object> redisTemplate;
-    private final com.fasterxml.jackson.databind.ObjectMapper objectMapper;
+    private final RedisTemplate<String, Object> redisTemplate;
+    private final ObjectMapper objectMapper;
 
     @Transactional
     public VoucherResponse createVoucher(CreateVoucherRequest request) {
