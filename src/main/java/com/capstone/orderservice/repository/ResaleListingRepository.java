@@ -76,7 +76,9 @@ public interface ResaleListingRepository extends JpaRepository<ResaleListing, Lo
                LOWER(r.ticketAsset.eventName) LIKE :search OR
                CAST(r.sellerId AS string) LIKE :search)
           AND (:hasStatuses = false OR r.status IN :statuses)
-          AND (:overCap IS NULL OR (r.listingPrice > r.priceCap) = :overCap)
+          AND (:overCap IS NULL OR
+               (:overCap = true AND r.listingPrice > r.priceCap) OR
+               (:overCap = false AND r.listingPrice <= r.priceCap))
     """)
     Page<ResaleListing> searchListings(
             @Param("search") String search,
