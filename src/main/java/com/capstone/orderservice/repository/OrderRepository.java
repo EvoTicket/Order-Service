@@ -97,4 +97,16 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
     List<Object[]> getTicketsSoldForEvents(@Param("eventIds") List<Long> eventIds,
                                            @Param("startDate") LocalDateTime startDate,
                                            @Param("endDate") LocalDateTime endDate);
+
+    @Query("""
+        SELECT o FROM Order o
+        WHERE (:search IS NULL OR
+               LOWER(o.orderCode) LIKE :search OR
+               LOWER(o.fullName) LIKE :search OR
+               LOWER(o.email) LIKE :search OR
+               LOWER(o.phoneNumber) LIKE :search)
+    """)
+    Page<Order> searchOrders(@Param("search") String search, Pageable pageable);
+
+    long countByOrderStatus(OrderStatus status);
 }

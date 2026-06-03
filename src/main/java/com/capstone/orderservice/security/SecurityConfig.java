@@ -60,6 +60,7 @@ public class SecurityConfig {
 
                         .requestMatchers(HttpMethod.GET, "/api/locations/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/v1/orders/cancel-callback").permitAll()
+                        .requestMatchers("/api/v1/admin/**").hasRole("ADMIN")
 
                         .anyRequest().authenticated())
                 .addFilterBefore(internalAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)

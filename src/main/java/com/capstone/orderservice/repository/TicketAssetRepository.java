@@ -40,4 +40,21 @@ public interface TicketAssetRepository extends JpaRepository<TicketAsset, Long> 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("SELECT t FROM TicketAsset t WHERE t.id = :id")
     Optional<TicketAsset> findByIdForUpdate(@Param("id") Long id);
+
+    @Query("""
+        SELECT t FROM TicketAsset t
+        LEFT JOIN t.orderItem oi
+        LEFT JOIN oi.order o
+        WHERE (:search IS NULL OR
+               LOWER(t.ticketCode) LIKE :search OR
+               LOWER(t.assetCode) LIKE :search OR
+               LOWER(t.eventName) LIKE :search OR
+               LOWER(o.fullName) LIKE :search OR
+               LOWER(o.email) LIKE :search)
+    """)
+    org.springframework.data.domain.Page<TicketAsset> searchTickets(@Param("search") String search, org.springframework.data.domain.Pageable pageable);
+
+    long countByChainStatus(TicketChainStatus chainStatus);
+
+    long countByAccessStatus(TicketAccessStatus accessStatus);
 }

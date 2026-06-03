@@ -34,11 +34,15 @@ public interface ResaleListingRepository extends JpaRepository<ResaleListing, Lo
 
     boolean existsByTicketAsset_IdAndStatusIn(Long ticketAssetId, Collection<ResaleListingStatus> statuses);
 
+    long countByStatus(ResaleListingStatus status);
+
     @org.springframework.data.jpa.repository.Modifying
     @Query("UPDATE ResaleListing r SET r.viewCount = r.viewCount + 1 WHERE r.id = :id")
     void incrementViewCount(@Param("id") Long id);
 
     List<ResaleListing> findAllByStatusAndReservedUntilBefore(ResaleListingStatus status, LocalDateTime now);
+
+    List<ResaleListing> findAllByStatusAndSoldAtAfter(ResaleListingStatus status, LocalDateTime since);
 
     Optional<ResaleListing> findByReservationSessionId(String sessionId);
 
@@ -49,4 +53,36 @@ public interface ResaleListingRepository extends JpaRepository<ResaleListing, Lo
         GROUP BY r.ticketAsset.eventId
     """)
     List<Object[]> getResaleStatsForEvents(@Param("eventIds") List<Long> eventIds, @Param("since") LocalDateTime since);
+
+    @Query("SELECT COUNT(r) FROM ResaleListing r WHERE r.listingPrice > r.priceCap")
+    long countOverCap();
+
+    @Query("SELECT COUNT(r) FROM ResaleListing r WHERE r.listingPrice <= r.priceCap")
+    long countWithinCap();
+
+    @Query("SELECT COUNT(r) FROM ResaleListing r WHERE r.listingPrice > r.priceCap * 0.95 AND r.listingPrice <= r.priceCap")
+    long countNearCap();
+
+    @Query("SELECT SUM(r.organizerRoyaltyAmount) FROM ResaleListing r WHERE r.status = 'SOLD'")
+    BigDecimal sumOrganizerRoyalty();
+
+    @Query("SELECT AVG(r.listingPrice) FROM ResaleListing r")
+    BigDecimal averageListingPrice();
+
+    @Query("""
+        SELECT r FROM ResaleListing r
+        WHERE (:search IS NULL OR
+               LOWER(r.listingCode) LIKE :search OR
+               LOWER(r.ticketAsset.eventName) LIKE :search OR
+               CAST(r.sellerId AS string) LIKE :search)
+          AND (:hasStatuses = false OR r.status IN :statuses)
+          AND (:overCap IS NULL OR (r.listingPrice > r.priceCap) = :overCap)
+    """)
+    Page<ResaleListing> searchListings(
+            @Param("search") String search,
+            @Param("statuses") Collection<ResaleListingStatus> statuses,
+            @Param("hasStatuses") boolean hasStatuses,
+            @Param("overCap") Boolean overCap,
+            Pageable pageable
+    );
 }
