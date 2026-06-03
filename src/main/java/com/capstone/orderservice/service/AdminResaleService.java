@@ -37,6 +37,7 @@ public class AdminResaleService {
     private final TicketAssetRepository ticketAssetRepository;
     private final OrderRepository orderRepository;
     private final OrderItemRepository orderItemRepository;
+    private final Random random = new Random();
 
     @PostConstruct
     @Transactional
@@ -162,7 +163,7 @@ public class AdminResaleService {
                 .createdAt(createdAt)
                 .updatedAt(createdAt)
                 .soldAt(soldAt)
-                .viewCount(100L + new Random().nextInt(500))
+                .viewCount(100L + random.nextInt(500))
                 .build();
 
         return resaleListingRepository.save(listing);
@@ -218,7 +219,7 @@ public class AdminResaleService {
                     .average();
 
             // Set beautiful fallback curves if the DB has low data volume
-            int mockBaseVol = 18 + (i * 2) + new Random().nextInt(5);
+            int mockBaseVol = 18 + (i * 2) + random.nextInt(5);
             double mockBasePrice = 1.15 + (i * 0.05);
 
             int finalVol = dayVol > 0 ? (int) dayVol : mockBaseVol;

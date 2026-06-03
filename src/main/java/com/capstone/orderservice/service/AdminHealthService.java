@@ -158,6 +158,11 @@ public class AdminHealthService {
                         uptime = "99.0%";
                         lastIncident = "Gần đây";
                     }
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    throw new com.capstone.orderservice.exception.AppException(
+                            com.capstone.orderservice.exception.ErrorCode.INTERNAL_SERVER_ERROR,
+                            "Yêu cầu kiểm tra sức khỏe bị gián đoạn", e);
                 } catch (Exception e) {
                     status = "Down";
                 }
@@ -187,6 +192,11 @@ public class AdminHealthService {
             if (response.statusCode() == 200) {
                 return "Healthy";
             }
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new com.capstone.orderservice.exception.AppException(
+                    com.capstone.orderservice.exception.ErrorCode.INTERNAL_SERVER_ERROR,
+                    "Yêu cầu kiểm tra sức khỏe Web3 bị gián đoạn", e);
         } catch (Exception ignored) {}
 
         // Try localhost second
@@ -199,6 +209,11 @@ public class AdminHealthService {
             if (response.statusCode() == 200) {
                 return "Healthy";
             }
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new com.capstone.orderservice.exception.AppException(
+                    com.capstone.orderservice.exception.ErrorCode.INTERNAL_SERVER_ERROR,
+                    "Yêu cầu kiểm tra sức khỏe Web3 bị gián đoạn", e);
         } catch (Exception ignored) {}
 
         return "Down";
