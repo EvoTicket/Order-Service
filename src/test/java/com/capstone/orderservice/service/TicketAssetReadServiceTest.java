@@ -1,10 +1,13 @@
 package com.capstone.orderservice.service;
 
 import com.capstone.orderservice.client.InventoryFeignClient;
-import com.capstone.orderservice.dto.response.MyTicketsResponse;
+import com.capstone.orderservice.dto.response.MyTicketGroupResponse;
 import com.capstone.orderservice.dto.response.ResaleEligibilityResponse;
 import com.capstone.orderservice.dto.response.TicketAssetResponse;
 import com.capstone.orderservice.entity.TicketAsset;
+import com.capstone.orderservice.entity.Order;
+import com.capstone.orderservice.entity.OrderItem;
+import com.capstone.orderservice.repository.ResaleListingRepository;
 import com.capstone.orderservice.enums.TicketAccessStatus;
 import com.capstone.orderservice.enums.TicketChainStatus;
 import com.capstone.orderservice.repository.TicketAssetRepository;
@@ -39,6 +42,9 @@ class TicketAssetReadServiceTest {
     @Mock
     private TicketProvenanceService ticketProvenanceService;
 
+    @Mock
+    private ResaleListingRepository resaleListingRepository;
+
     @InjectMocks
     private TicketAssetService ticketAssetService;
 
@@ -55,17 +61,14 @@ class TicketAssetReadServiceTest {
         onSale.setCurrentResaleListingId(99L);
 
         when(ticketAssetRepository.findByCurrentOwnerId(10L)).thenReturn(List.of(active, used, onSale));
+        when(resaleListingRepository.findAllById(List.of(99L))).thenReturn(List.of());
 
-        MyTicketsResponse response = ticketAssetService.getMyTickets();
+        List<MyTicketGroupResponse> response = ticketAssetService.getMyTickets();
 
-        assertThat(response.getTotalTickets()).isEqualTo(3);
-        assertThat(response.getActiveCount()).isEqualTo(1);
-        assertThat(response.getUsedCount()).isEqualTo(1);
-        assertThat(response.getMintPendingCount()).isEqualTo(1);
-        assertThat(response.getOnSaleCount()).isEqualTo(1);
-        assertThat(response.getTickets()).hasSize(3);
-        assertThat(response.getTickets().getFirst().getQrAvailable()).isTrue();
-        assertThat(response.getTickets().getFirst().getCanResell()).isTrue();
+        assertThat(response).hasSize(1);
+        MyTicketGroupResponse group = response.getFirst();
+        assertThat(group.getTotalTickets()).isEqualTo(3);
+        assertThat(group.getTickets()).hasSize(3);
         verify(ticketAssetRepository).findByCurrentOwnerId(10L);
     }
 
@@ -103,6 +106,12 @@ class TicketAssetReadServiceTest {
             TicketAccessStatus accessStatus,
             TicketChainStatus chainStatus
     ) {
+        Order order = Order.builder()
+                .createdAt(LocalDateTime.now().minusDays(1))
+                .build();
+        OrderItem orderItem = OrderItem.builder()
+                .order(order)
+                .build();
         return TicketAsset.builder()
                 .id(id)
                 .assetCode("ASSET-" + id)
@@ -118,6 +127,7 @@ class TicketAssetReadServiceTest {
                 .currentOwnerId(ownerId)
                 .accessStatus(accessStatus)
                 .chainStatus(chainStatus)
+                .orderItem(orderItem)
                 .createdAt(LocalDateTime.now().minusDays(1))
                 .updatedAt(LocalDateTime.now())
                 .build();
