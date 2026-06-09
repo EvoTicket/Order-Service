@@ -15,6 +15,7 @@ import java.util.List;
 public class OrderConfirmEvent {
     private String email;
     private String fullName;
+    private Long userId;
 
     private String orderCode;
     private BigDecimal totalAmount;

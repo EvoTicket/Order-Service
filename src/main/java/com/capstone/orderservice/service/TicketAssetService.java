@@ -488,15 +488,30 @@ public class TicketAssetService {
                 if (request.getAddressContract() != null) item.setContractAddress(request.getAddressContract());
             }
 
+            Long oldOwnerId = asset.getCurrentOwnerId();
             // Update owner if possible
+            Long newOwnerId = null;
             if (request.getData().getTo_userID() != null) {
                 try {
-                    Long newOwnerId = Long.parseLong(request.getData().getTo_userID());
+                    newOwnerId = Long.parseLong(request.getData().getTo_userID());
                     asset.setCurrentOwnerId(newOwnerId);
                 } catch (NumberFormatException e) {
                     log.warn("Failed to parse to_userID: {}", request.getData().getTo_userID());
                 }
             }
+
+            try {
+                Map<String, Object> transferEvent = new HashMap<>();
+                transferEvent.put("ticketCode", asset.getTicketCode());
+                transferEvent.put("eventName", asset.getEventName());
+                transferEvent.put("ticketTypeName", asset.getTicketTypeName());
+                transferEvent.put("fromUserId", oldOwnerId);
+                transferEvent.put("toUserId", newOwnerId);
+                redisStreamProducer.sendMessage("ticket-transferred", transferEvent);
+            } catch (Exception e) {
+                log.error("Failed to send ticket-transferred stream message", e);
+            }
+
             log.info("Successfully updated web3 transfer info for ticket: {}. TxHash: {}", tokenId, request.getTxHash());
         } else {
             asset.setChainStatus(TicketChainStatus.TRANSFER_FAILED);
@@ -549,6 +564,17 @@ public class TicketAssetService {
                 if (fromBlock != null) item.setFromBlock(fromBlock);
                 if (toBlock != null) item.setToBlock(toBlock);
                 if (contractAddress != null) item.setContractAddress(contractAddress);
+            }
+
+            try {
+                Map<String, Object> mintEvent = new HashMap<>();
+                mintEvent.put("userId", asset.getCurrentOwnerId());
+                mintEvent.put("ticketCode", asset.getTicketCode());
+                mintEvent.put("eventName", asset.getEventName());
+                mintEvent.put("ticketTypeName", asset.getTicketTypeName());
+                redisStreamProducer.sendMessage("ticket-minted", mintEvent);
+            } catch (Exception e) {
+                log.error("Failed to send ticket-minted stream message", e);
             }
 
             log.info("Successfully updated web3 mint info for ticket: {}. TxHash: {}", ticketCode, txHash);

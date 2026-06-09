@@ -256,6 +256,7 @@ public class OrderService {
         OrderConfirmEvent emailDto = OrderConfirmEvent.builder()
                 .email(order.getEmail())
                 .fullName(order.getFullName())
+                .userId(order.getUserId())
                 .orderCode(order.getOrderCode())
                 .totalAmount(order.getTotalAmount())
                 .discountCode(
