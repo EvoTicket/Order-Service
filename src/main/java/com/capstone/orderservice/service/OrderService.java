@@ -91,7 +91,7 @@ public class OrderService {
                 .toList();
 
         String datePart = LocalDate.now()
-                .format(DateTimeFormatter.ofPattern("ddMMyy"));
+                .format(DateTimeFormatter.ofPattern("yyMMdd"));
 
         int randomPart = ThreadLocalRandom.current().nextInt(100000, 1_000_000);
 

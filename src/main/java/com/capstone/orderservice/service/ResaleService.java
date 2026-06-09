@@ -1224,7 +1224,7 @@ public class ResaleService {
     }
 
     private String generateNumericOrderCode() {
-        String datePart = LocalDate.now().format(DateTimeFormatter.ofPattern("ddMMyy"));
+        String datePart = LocalDate.now().format(DateTimeFormatter.ofPattern("yyMMdd"));
         for (int i = 0; i < 10; i++) {
             int randomPart = ThreadLocalRandom.current().nextInt(100000, 1_000_000);
             String orderCode = datePart + randomPart;

@@ -180,30 +180,24 @@ class TicketProvenanceServiceTest {
     }
 
     @Test
-    void getProvenanceForMyTicketChecksCurrentOwnerAndReturnsAscendingRecords() {
+    void getProvenanceForMyTicketChecksCurrentOwnerAndReturnsHistory() {
         when(jwtUtil.getDataFromAuth()).thenReturn(new TokenMetaData(10L, false, null));
-        when(ticketAssetRepository.findByIdAndCurrentOwnerId(1L, 10L)).thenReturn(Optional.of(ticketAsset()));
+        TicketAsset asset = ticketAsset();
+        asset.setTokenId("1");
+        when(ticketAssetRepository.findByIdAndCurrentOwnerId(1L, 10L)).thenReturn(Optional.of(asset));
 
-        TicketProvenance provenance = TicketProvenance.builder()
-                .id(11L)
-                .ticketAssetId(1L)
-                .toUserId(10L)
-                .actionType(ProvenanceActionType.PRIMARY_ISSUED)
-                .orderCode("300426123456")
-                .price(new BigDecimal("100000.00"))
-                .chainStatus("WEB2_ONLY")
-                .description("Ticket issued after primary order confirmation")
-                .createdAt(LocalDateTime.now())
+        RichTicketProvenanceResponse mockResponse = RichTicketProvenanceResponse.builder()
+                .tokenId("1")
                 .build();
-        when(ticketProvenanceRepository.findByTicketAssetIdOrderByCreatedAtAsc(1L))
-                .thenReturn(List.of(provenance));
+        when(workerClient.getTicketHistory("1", asset.getFromBlock(), asset.getToBlock()))
+                .thenReturn(mockResponse);
 
-        List<TicketProvenanceResponse> response = ticketProvenanceService.getProvenanceForMyTicket(1L);
+        RichTicketProvenanceResponse response = ticketProvenanceService.getProvenanceForMyTicket(1L);
 
-        assertThat(response).hasSize(1);
-        assertThat(response.getFirst().getId()).isEqualTo(11L);
-        assertThat(response.getFirst().getActionType()).isEqualTo(ProvenanceActionType.PRIMARY_ISSUED);
+        assertThat(response).isNotNull();
+        assertThat(response.getTokenId()).isEqualTo("1");
         verify(ticketAssetRepository).findByIdAndCurrentOwnerId(1L, 10L);
+        verify(workerClient).getTicketHistory("1", asset.getFromBlock(), asset.getToBlock());
     }
 
     private TicketAsset ticketAsset() {
